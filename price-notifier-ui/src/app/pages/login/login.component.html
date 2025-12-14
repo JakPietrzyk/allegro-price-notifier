@@ -1,0 +1,38 @@
+<div class="login-wrapper">
+  <div class="login-card">
+    <h2>Zaloguj się</h2>
+
+    <form (ngSubmit)="onSubmit()">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input
+          type="email"
+          id="email"
+          [(ngModel)]="email"
+          name="email"
+          required
+          placeholder="np. admin@test.pl">
+      </div>
+
+      <div class="form-group">
+        <label for="password">Hasło</label>
+        <input
+          type="password"
+          id="password"
+          [(ngModel)]="password"
+          name="password"
+          required>
+      </div>
+
+      <button type="submit" class="btn-primary">Wejdź</button>
+    </form>
+
+    <div *ngIf="errorMessage" class="error-msg">
+      {{ errorMessage }}
+    </div>
+
+    <div style="margin-top: 15px; text-align: center;">
+      Nie masz konta? <a routerLink="/register" style="color: #007bff; text-decoration: none;">Zarejestruj się</a>
+    </div>
+  </div>
+</div>

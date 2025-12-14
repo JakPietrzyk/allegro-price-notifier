@@ -1,0 +1,69 @@
+<div class="dashboard-container">
+  <header class="top-bar">
+    <h1>Price Notifier 🛒</h1>
+    <button (click)="logout()" class="btn-logout">Wyloguj</button>
+  </header>
+
+  <main>
+    <section class="actions-panel">
+      <div class="action-card">
+        <h3>Dodaj po nazwie</h3>
+        <div class="input-group">
+          <input
+            [ngModel]="newProductName()"
+            (ngModelChange)="newProductName.set($event)"
+            placeholder="np. PlayStation 5"
+            (keyup.enter)="addProductByName()">
+
+          <button (click)="addProductByName()" [disabled]="loading()">Szukaj</button>
+        </div>
+      </div>
+
+      <div class="action-card">
+        <h3>Dodaj link Ceneo</h3>
+        <div class="input-group">
+          <input
+            [ngModel]="newProductUrl()"
+            (ngModelChange)="newProductUrl.set($event)"
+            placeholder="Link do Ceneo"
+            (keyup.enter)="addProductByUrl()">
+
+          <button (click)="addProductByUrl()" [disabled]="loading()">Link</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="products-grid">
+
+      <div *ngIf="loading()" class="loader">
+        <p>🔄 Pobieranie aktualnych cen...</p>
+      </div>
+
+      <div *ngIf="!loading() && products().length === 0" class="empty-state">
+        <p>Brak produktów. Dodaj coś powyżej!</p>
+      </div>
+
+      <ng-container *ngIf="!loading() && products().length > 0">
+        <div *ngFor="let product of products()" class="product-card">
+          <div class="card-header">
+            <h4>{{ product.productName }}</h4>
+          </div>
+
+          <div class="card-body">
+            <p class="price">{{ product.currentPrice | number:'1.2-2' }} PLN</p>
+            <small *ngIf="product.lastChecked" style="color: gray">
+              Ost. sprawdzenie: {{ product.lastChecked }}
+            </small>
+          </div>
+
+          <div class="card-footer">
+            <a [href]="product.productUrl" target="_blank" class="btn-link">
+              Zobacz ofertę &rarr;
+            </a>
+          </div>
+        </div>
+      </ng-container>
+
+    </section>
+  </main>
+</div>

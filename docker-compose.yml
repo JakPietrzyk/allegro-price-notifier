@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: price_db_local
+    restart: always
+    environment:
+      MYSQL_DATABASE: price_db
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  scraper:
+    build:
+      context: ./price-crawler
+      dockerfile: Dockerfile
+    container_name: price_scraper_local
+    ports:
+      - "5000:8080"
+    environment:
+      PORT: 8080
+
+  backend:
+    build:
+      context: ./price-processor
+      dockerfile: Dockerfile
+    container_name: price_backend_local
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/price_db?allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+      SCRAPER_URL_SEARCH: http://scraper:8080/find_price
+      SCRAPER_URL_DIRECT: http://scraper:8080/scrape_direct_url
+      ALLOWED_ORIGINS: http://localhost:4200
+    depends_on:
+      db:
+        condition: service_healthy
+      scraper:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./price-notifier-ui
+      dockerfile: Dockerfile
+    container_name: price_frontend_local
+    ports:
+      - "4200:80"
+    depends_on:
+      - backend
