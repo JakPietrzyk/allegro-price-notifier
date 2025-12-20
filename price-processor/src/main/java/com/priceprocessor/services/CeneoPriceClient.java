@@ -20,14 +20,12 @@ public class CeneoPriceClient implements PriceClient {
     private final String scraperDirectUrl;
     private final RestTemplate restTemplate;
 
-    // Spring automatycznie wstrzyknie wartości z properties ORAZ bean RestTemplate
     public CeneoPriceClient(
-            @Value("${scraper.url.search}") String scraperSearchUrl,
-            @Value("${scraper.url.direct}") String scraperDirectUrl,
+            @Value("${scraper.url.base}") String scraperBaseUrl,
             RestTemplate restTemplate
     ) {
-        this.scraperSearchUrl = scraperSearchUrl;
-        this.scraperDirectUrl = scraperDirectUrl;
+        this.scraperSearchUrl = scraperBaseUrl + "/find_price";
+        this.scraperDirectUrl = scraperBaseUrl + "/scrape_direct_url";
         this.restTemplate = restTemplate;
     }
 
@@ -49,7 +47,7 @@ public class CeneoPriceClient implements PriceClient {
                 return Optional.of(response.getBody());
             }
         } catch (Exception e) {
-            log.error("Błąd połączenia ze scraperem ({}): {}", url, e.getMessage());
+            log.error("Error connecting to scraper ({}): {}", url, e.getMessage());
         }
         return Optional.empty();
     }

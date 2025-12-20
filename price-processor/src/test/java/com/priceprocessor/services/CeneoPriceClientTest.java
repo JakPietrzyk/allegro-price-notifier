@@ -29,8 +29,7 @@ class CeneoPriceClientTest {
     @BeforeEach
     void setUp() {
         client = new CeneoPriceClient(
-                "http://localhost:5000/search",
-                "http://localhost:5000/direct",
+                "http://localhost:5000/",
                 restTemplate
         );
     }

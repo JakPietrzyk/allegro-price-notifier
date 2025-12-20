@@ -33,6 +33,23 @@ else
     echo "Scraper working: $SCRAPER_URL"
 fi
 
+echo "--- 1.5. Cloud Function for mail"
+FUNCTION_NAME="email-sender-func"
+TOPIC_NAME="email-notifications"
+EMAIL_DIR="../email-sender"
+
+gcloud pubsub topics create $TOPIC_NAME 2>/dev/null || echo "Topic already exists"
+
+gcloud functions deploy $FUNCTION_NAME \
+    --gen2 \
+    --runtime=python310 \
+    --region=$REGION \
+    --source=$EMAIL_DIR \
+    --entry-point=send_email_pubsub \
+    --trigger-topic=$TOPIC_NAME \
+    --set-env-vars SMTP_USER=$SMTP_USER,SMTP_PASS=$SMTP_PASS,SMTP_SENDER=$SMTP_SENDER \
+    --allow-unauthenticated
+
 
 echo "--- 2. Java Backendu ---"
 
@@ -50,7 +67,8 @@ gcloud run deploy $BACKEND_SERVICE \
   --set-env-vars SPRING_DATASOURCE_PASSWORD="$DB_PASS" \
   --set-env-vars SERVER_PORT="8080" \
   --set-env-vars SCRAPER_URL_SEARCH="$SCRAPER_URL/find_price" \
-  --set-env-vars SCRAPER_URL_DIRECT="$SCRAPER_URL/scrape_direct_url"
+  --set-env-vars SCRAPER_URL_DIRECT="$SCRAPER_URL/scrape_direct_url" \
+  --set-env-vars GCP_PUBSUB_TOPIC_NAME="projects/$PROJECT_ID/topics/$TOPIC_NAME" \
 
 BACKEND_URL=$(gcloud run services describe $BACKEND_SERVICE --region $REGION --format 'value(status.url)')
 echo "Backend is working: $BACKEND_URL"

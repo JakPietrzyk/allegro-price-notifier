@@ -4,6 +4,9 @@ terraform {
       source  = "hashicorp/google"
       version = ">= 4.51.0"
     }
+    random = {
+      source = "hashicorp/random"
+    }
   }
 }
 
@@ -43,6 +46,20 @@ resource "google_project_service" "artifact_registry_api" {
   disable_on_destroy = false
 }
 
+resource "google_project_service" "pubsub_api" {
+  service = "pubsub.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "cloudfunctions_api" {
+  service = "cloudfunctions.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "build_api" {
+  service = "cloudbuild.googleapis.com"
+  disable_on_destroy = false
+}
 
 resource "google_artifact_registry_repository" "repo" {
   location      = var.region
@@ -62,12 +79,10 @@ resource "google_sql_database_instance" "instance" {
   name             = "price-db-${random_id.db_name_suffix.hex}"
   region           = var.region
   database_version = "MYSQL_8_0"
-
   deletion_protection = false
 
   settings {
     tier = "db-f1-micro"
-
     ip_configuration {
       ipv4_enabled = true
       authorized_networks {
@@ -76,7 +91,6 @@ resource "google_sql_database_instance" "instance" {
       }
     }
   }
-
   depends_on = [google_project_service.sqladmin_api]
 }
 
@@ -91,7 +105,12 @@ resource "google_sql_user" "users" {
   password = var.db_password
 }
 
-# Java backend
+# --- Pub/Sub ---
+resource "google_pubsub_topic" "email_topic" {
+  name = "email-notifications"
+}
+
+# --- Cloud Run: BACKEND ---
 resource "google_cloud_run_v2_service" "backend" {
   name     = "price-processor-backend"
   location = var.region
@@ -100,7 +119,7 @@ resource "google_cloud_run_v2_service" "backend" {
 
   template {
     containers {
-      image = "us-docker.pkg.dev/cloudrun/container/hello" # Placeholder
+      image = "us-docker.pkg.dev/cloudrun/container/hello"
 
       env {
         name  = "DB_URL"
@@ -115,24 +134,59 @@ resource "google_cloud_run_v2_service" "backend" {
         value = var.db_password
       }
     }
-
     scaling {
       min_instance_count = 0
       max_instance_count = 1
     }
   }
-
   depends_on = [google_project_service.run_api, google_sql_database_instance.instance]
 }
 
-resource "google_cloud_run_service_iam_member" "public_access" {
+resource "google_cloud_run_service_iam_member" "backend_public_access" {
   service  = google_cloud_run_v2_service.backend.name
   location = google_cloud_run_v2_service.backend.location
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
 
+# --- Cloud Run: SCRAPER ---
+resource "google_cloud_run_v2_service" "scraper" {
+  name     = "scraper-service"
+  location = var.region
+  deletion_protection = false
 
+  template {
+    containers {
+      image = "us-docker.pkg.dev/cloudrun/container/hello"
+    }
+  }
+  depends_on = [google_project_service.run_api]
+}
+
+# --- Cloud Run: FRONTEND ---
+resource "google_cloud_run_v2_service" "frontend" {
+  name     = "frontend-app"
+  location = var.region
+  deletion_protection = false
+  ingress = "INGRESS_TRAFFIC_ALL"
+
+  template {
+    containers {
+      image = "us-docker.pkg.dev/cloudrun/container/hello"
+    }
+  }
+  depends_on = [google_project_service.run_api]
+}
+
+resource "google_cloud_run_service_iam_member" "frontend_public_access" {
+  service  = google_cloud_run_v2_service.frontend.name
+  location = google_cloud_run_v2_service.frontend.location
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
+
+
+# --- Outputs ---
 output "db_connection_name" {
   value = google_sql_database_instance.instance.connection_name
 }
@@ -152,4 +206,8 @@ output "project_id" {
 
 output "region" {
   value = var.region
+}
+
+output "pubsub_topic_name" {
+  value = google_pubsub_topic.email_topic.id
 }
