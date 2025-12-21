@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { AuthService } from '../../services/auth.service';
 import {environment} from '../../../environments/environment';
+import {RouterLink} from '@angular/router';
 
 interface ProductObservation {
   id?: number;
@@ -16,7 +17,7 @@ interface ProductObservation {
 @Component({
   selector: 'app-dashboard',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.css'
 })
@@ -94,5 +95,29 @@ export class DashboardComponent implements OnInit {
         this.loading.set(false);
       }
     });
+  }
+
+  deleteProduct(id: number | undefined, event: Event) {
+    event.stopPropagation();
+
+    if (!id) return;
+
+    const confirmed = window.confirm('Czy na pewno chcesz usunąć ten produkt i jego historię?');
+
+    if (confirmed) {
+      this.loading.set(true);
+
+      this.http.delete(`${this.apiUrl}/${id}`).subscribe({
+        next: () => {
+          this.products.update(currentProducts => currentProducts.filter(p => p.id !== id));
+          this.loading.set(false);
+        },
+        error: (err) => {
+          console.error(err);
+          alert('Nie udało się usunąć produktu.');
+          this.loading.set(false);
+        }
+      });
+    }
   }
 }

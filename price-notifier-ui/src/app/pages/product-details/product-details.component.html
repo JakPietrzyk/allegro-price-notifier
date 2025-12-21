@@ -1,0 +1,51 @@
+<div class="details-container">
+
+  <div class="nav-header">
+    <a routerLink="/" class="back-btn">&larr; Wróć do listy</a>
+  </div>
+
+  <div *ngIf="loading()" class="loader">
+    <p>Ładowanie danych...</p>
+  </div>
+
+  <div *ngIf="!loading() && product()" class="content">
+
+    <header class="product-header">
+      <h1>{{ product()?.productName }}</h1>
+      <a [href]="product()?.productUrl" target="_blank" class="ceneo-btn">
+        Przejdź do oferty na Ceneo ↗
+      </a>
+    </header>
+
+    <section class="stats-grid">
+      <div class="stat-card current">
+        <span class="label">Aktualna Cena</span>
+        <span class="value">{{ product()?.currentPrice | number:'1.2-2' }} zł</span>
+      </div>
+
+      <div class="stat-card lowest">
+        <span class="label">Najniższa (Hist.)</span>
+        <span class="value">{{ lowestPrice() | number:'1.2-2' }} zł</span>
+      </div>
+
+      <div class="stat-card last-check">
+        <span class="label">Ostatni pomiar</span>
+        <span class="value date">
+           {{ product()?.priceHistory?.at(-1)?.checkedAt | date:'short' }}
+         </span>
+      </div>
+    </section>
+
+    <section class="chart-section">
+      <h3>Historia Cen</h3>
+      <div class="chart-wrapper">
+        <canvas baseChart
+                [data]="lineChartData"
+                [options]="lineChartOptions"
+                [type]="'line'">
+        </canvas>
+      </div>
+    </section>
+
+  </div>
+</div>

@@ -1,5 +1,6 @@
 package com.priceprocessor.controllers;
 
+import com.priceprocessor.dtos.api.ProductDetailsResponse;
 import com.priceprocessor.dtos.api.ProductObservationRequest;
 import com.priceprocessor.dtos.api.ProductObservationResponse;
 import com.priceprocessor.models.ProductObservation;
@@ -34,5 +35,16 @@ public class ProductController {
     public ResponseEntity<ProductObservationResponse> addProductByUrl(@RequestBody ProductObservationRequest request) {
         ProductObservationResponse created = productService.startObservingProductByUrl(request);
         return ResponseEntity.ok(created);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ProductDetailsResponse> getProductDetails(@PathVariable Long id) {
+        return ResponseEntity.ok(productService.getProductDetails(id));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
+        productService.deleteObservedProduct(id);
+        return ResponseEntity.noContent().build();
     }
 }

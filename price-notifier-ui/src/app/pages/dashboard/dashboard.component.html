@@ -44,7 +44,14 @@
       </div>
 
       <ng-container *ngIf="!loading() && products().length > 0">
-        <div *ngFor="let product of products()" class="product-card">
+        <div
+          *ngFor="let product of products()"
+          class="product-card clickable"
+          [routerLink]="['/details', product.id]">
+
+          <button class="delete-btn" (click)="deleteProduct(product.id, $event)" title="Usuń produkt">
+            &times; </button>
+
           <div class="card-header">
             <h4>{{ product.productName }}</h4>
           </div>
@@ -52,13 +59,13 @@
           <div class="card-body">
             <p class="price">{{ product.currentPrice | number:'1.2-2' }} PLN</p>
             <small *ngIf="product.lastChecked" style="color: gray">
-              Ost. sprawdzenie: {{ product.lastChecked }}
+              Ost. sprawdzenie: {{ product.lastChecked | date:'short' }}
             </small>
           </div>
 
-          <div class="card-footer">
+          <div class="card-footer" (click)="$event.stopPropagation()">
             <a [href]="product.productUrl" target="_blank" class="btn-link">
-              Zobacz ofertę &rarr;
+              Oferta Ceneo ↗
             </a>
           </div>
         </div>

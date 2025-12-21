@@ -1,5 +1,6 @@
 package com.priceprocessor.services;
 
+import com.priceprocessor.dtos.api.ProductDetailsResponse;
 import com.priceprocessor.dtos.api.ProductObservationRequest;
 import com.priceprocessor.dtos.api.ProductObservationResponse;
 import com.priceprocessor.dtos.crawler.PriceResponse;
@@ -7,78 +8,79 @@ import com.priceprocessor.models.ProductObservation;
 import com.priceprocessor.repositories.ProductRepository;
 import com.priceprocessor.services.interfaces.PriceClient;
 import com.priceprocessor.services.queue.NotificationProducer;
-import io.micrometer.core.instrument.Counter;
-import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
 @Service
+@RequiredArgsConstructor
 public class ProductService {
 
     private final ProductRepository productRepository;
     private final PriceClient priceClient;
     private final NotificationProducer notificationProducer;
-    private final Counter priceCheckCounter;
 
-    public ProductService(ProductRepository productRepository, PriceClient priceClient,
-                          NotificationProducer notificationProducer, MeterRegistry registry) {
-        this.productRepository = productRepository;
-        this.priceClient = priceClient;
-        this.notificationProducer = notificationProducer;
-        this.priceCheckCounter = Counter.builder("product.price.checked")
-                .description("Number of times price was checked")
-                .register(registry);
+    @Transactional(readOnly = true)
+    public ProductDetailsResponse getProductDetails(Long id) {
+        ProductObservation product = productRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
 
-        this.priceCheckCounter.increment();
+        List<ProductDetailsResponse.PriceHistoryDto> historyDtos = product.getPriceHistory().stream()
+                .map(h -> new ProductDetailsResponse.PriceHistoryDto(h.getPrice(), h.getCheckedAt()))
+                .toList();
+
+        return new ProductDetailsResponse(
+                product.getId(),
+                product.getProductName(),
+                product.getProductUrl(),
+                product.getCurrentPrice(),
+                product.getUserEmail(),
+                historyDtos
+        );
     }
 
+    @Transactional
     public ProductObservationResponse startObservingProductByName(ProductObservationRequest request) {
         Optional<PriceResponse> response = priceClient.checkPriceByName(request.productName());
-        if (!response.isPresent()) {
-            //THROW SOMETHING
+        if (response.isEmpty()) {
+            throw new RuntimeException("Price not found");
         }
-        PriceResponse priceResponse = response.get();
-
-        ProductObservation observation = ProductObservation.builder()
-                .productName(priceResponse.foundProductName())
-                .productUrl(priceResponse.ceneoUrl())
-                .userEmail(request.userEmail())
-                .currentPrice(priceResponse.price())
-                .build();
-
-        productRepository.save(observation);
-        return ProductObservationResponse
-                .mapToDto(observation);
+        return saveNewProductObservation(request, response.get());
     }
 
+    @Transactional
     public ProductObservationResponse startObservingProductByUrl(ProductObservationRequest request) {
         Optional<PriceResponse> response = priceClient.checkPriceByUrl(request.productUrl());
-        if (!response.isPresent()) {
-            //THROW SOMETHING
+        if (response.isEmpty()) {
+            throw new RuntimeException("Price not found");
         }
-        PriceResponse priceResponse = response.get();
+        return saveNewProductObservation(request, response.get());
+    }
 
+    private ProductObservationResponse saveNewProductObservation(ProductObservationRequest request, PriceResponse priceResponse) {
         ProductObservation observation = ProductObservation.builder()
                 .productName(priceResponse.foundProductName())
                 .productUrl(priceResponse.ceneoUrl())
                 .userEmail(request.userEmail())
-                .currentPrice(priceResponse.price())
                 .build();
 
-        productRepository.save(observation);
+        observation.addPriceHistory(priceResponse.price(), LocalDateTime.now());
 
-        return ProductObservationResponse
-                .mapToDto(observation);
+        productRepository.save(observation);
+        return ProductObservationResponse.mapToDto(observation);
     }
 
     public List<ProductObservationResponse> getAllObservedProducts() {
-        List<ProductObservation> observedProducts = productRepository.findAll();
-
-        return observedProducts.stream()
+        return productRepository.findAll().stream()
                 .map(ProductObservationResponse::mapToDto)
                 .toList();
+    }
+
+    public void deleteObservedProduct(Long id) {
+        productRepository.deleteById(id);
     }
 }
