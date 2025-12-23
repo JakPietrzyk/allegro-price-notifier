@@ -3,7 +3,7 @@ package com.priceprocessor.services;
 import com.priceprocessor.dtos.crawler.PriceResponse;
 import com.priceprocessor.models.ProductObservation;
 import com.priceprocessor.repositories.ProductRepository;
-import com.priceprocessor.services.interfaces.PriceClient;
+import com.priceprocessor.services.clients.PriceClient;
 import com.priceprocessor.services.queue.NotificationProducer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

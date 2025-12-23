@@ -28,8 +28,6 @@ export class DashboardComponent implements OnInit {
   newProductName = signal<string>('');
   newProductUrl = signal<string>('');
 
-  currentUserEmail = 'user@test.com'; //TODO CHANGE
-
   private http = inject(HttpClient);
   private authService = inject(AuthService);
   private apiUrl = `${environment.apiUrl}/products`;
@@ -64,7 +62,6 @@ export class DashboardComponent implements OnInit {
 
     this.executeAdd(`${this.apiUrl}/search`, {
       productName: nameValue,
-      userEmail: this.currentUserEmail
     });
 
     this.newProductName.set('');
@@ -77,7 +74,6 @@ export class DashboardComponent implements OnInit {
 
     this.executeAdd(`${this.apiUrl}/url`, {
       productUrl: urlValue,
-      userEmail: this.currentUserEmail
     });
 
     this.newProductUrl.set('');

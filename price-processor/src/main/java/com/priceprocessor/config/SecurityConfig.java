@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.config.Customizer; // Ważny import
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -51,22 +50,16 @@ public class SecurityConfig {
         return http.build();
     }
 
-    // 2. DEFINICJA REGUŁ CORS
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // Pozwól na połączenia z Angulara
         configuration.setAllowedOrigins(List.of("http://localhost:4200"));
 
-        // Pozwól na metody HTTP
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
 
-        // Pozwól na nagłówki (m.in. Authorization i Content-Type)
         configuration.setAllowedHeaders(List.of("*"));
 
-        // KLUCZOWE: Pozwól na przesyłanie ciasteczek (Credentials)
-        // Bez tego Twoje ciasteczko z tokenem nie zostanie zapisane/przesłane!
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

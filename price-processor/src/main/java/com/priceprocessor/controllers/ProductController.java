@@ -30,8 +30,7 @@ public class ProductController {
         return ResponseEntity.ok(created);
     }
 
-    @RequestMapping("/url")
-    @PostMapping
+    @PostMapping("/url")
     public ResponseEntity<ProductObservationResponse> addProductByUrl(@RequestBody ProductObservationRequest request) {
         ProductObservationResponse created = productService.startObservingProductByUrl(request);
         return ResponseEntity.ok(created);

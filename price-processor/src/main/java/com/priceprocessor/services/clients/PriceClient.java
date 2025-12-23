@@ -1,4 +1,4 @@
-package com.priceprocessor.services.interfaces;
+package com.priceprocessor.services.clients;
 
 import com.priceprocessor.dtos.crawler.PriceResponse;
 

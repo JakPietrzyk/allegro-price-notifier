@@ -6,9 +6,9 @@ import com.priceprocessor.dtos.api.ProductObservationResponse;
 import com.priceprocessor.dtos.crawler.PriceResponse;
 import com.priceprocessor.models.ProductObservation;
 import com.priceprocessor.repositories.ProductRepository;
-import com.priceprocessor.services.interfaces.PriceClient;
-import com.priceprocessor.services.queue.NotificationProducer;
+import com.priceprocessor.services.clients.PriceClient;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,12 +22,17 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final PriceClient priceClient;
-    private final NotificationProducer notificationProducer;
+
+    private String getCurrentUserEmail() {
+        return SecurityContextHolder.getContext().getAuthentication().getName();
+    }
 
     @Transactional(readOnly = true)
     public ProductDetailsResponse getProductDetails(Long id) {
-        ProductObservation product = productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+        String currentUser = getCurrentUserEmail();
+
+        ProductObservation product = productRepository.findByIdAndUserEmail(id, currentUser)
+                .orElseThrow(() -> new RuntimeException("Product not found or access denied"));
 
         List<ProductDetailsResponse.PriceHistoryDto> historyDtos = product.getPriceHistory().stream()
                 .map(h -> new ProductDetailsResponse.PriceHistoryDto(h.getPrice(), h.getCheckedAt()))
@@ -49,7 +54,7 @@ public class ProductService {
         if (response.isEmpty()) {
             throw new RuntimeException("Price not found");
         }
-        return saveNewProductObservation(request, response.get());
+        return saveNewProductObservation(response.get());
     }
 
     @Transactional
@@ -58,14 +63,16 @@ public class ProductService {
         if (response.isEmpty()) {
             throw new RuntimeException("Price not found");
         }
-        return saveNewProductObservation(request, response.get());
+        return saveNewProductObservation(response.get());
     }
 
-    private ProductObservationResponse saveNewProductObservation(ProductObservationRequest request, PriceResponse priceResponse) {
+    private ProductObservationResponse saveNewProductObservation(PriceResponse priceResponse) {
+        String currentUser = getCurrentUserEmail();
+
         ProductObservation observation = ProductObservation.builder()
                 .productName(priceResponse.foundProductName())
                 .productUrl(priceResponse.ceneoUrl())
-                .userEmail(request.userEmail())
+                .userEmail(currentUser)
                 .build();
 
         observation.addPriceHistory(priceResponse.price(), LocalDateTime.now());
@@ -75,12 +82,20 @@ public class ProductService {
     }
 
     public List<ProductObservationResponse> getAllObservedProducts() {
-        return productRepository.findAll().stream()
+        String currentUser = getCurrentUserEmail();
+
+        return productRepository.findAllByUserEmail(currentUser).stream()
                 .map(ProductObservationResponse::mapToDto)
                 .toList();
     }
 
+    @Transactional
     public void deleteObservedProduct(Long id) {
-        productRepository.deleteById(id);
+        String currentUser = getCurrentUserEmail();
+
+        ProductObservation product = productRepository.findByIdAndUserEmail(id, currentUser)
+                .orElseThrow(() -> new RuntimeException("Product not found or access denied"));
+
+        productRepository.delete(product);
     }
 }

@@ -7,10 +7,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface ProductRepository extends JpaRepository<ProductObservation, Long> {
-    List<ProductObservation> findByUserEmail(String userEmail);
+    List<ProductObservation> findAllByUserEmail(String userEmail);
+    Optional<ProductObservation> findByIdAndUserEmail(Long id, String userEmail);
     @Query("SELECT p FROM ProductObservation p ORDER BY p.lastCheckedAt ASC NULLS FIRST")
     List<ProductObservation> findProductsToUpdate(Pageable pageable);
 }

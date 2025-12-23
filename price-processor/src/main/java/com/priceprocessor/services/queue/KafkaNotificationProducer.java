@@ -38,7 +38,7 @@ public class KafkaNotificationProducer implements NotificationProducer {
             String jsonString = objectMapper.writeValueAsString(payload);
 
             kafkaTemplate.send(topicName, jsonString);
-            logger.info("Email request sent to Kafka (Docker): {}", to);
+            logger.info("Email request sent to Kafka: {}", to);
 
         } catch (Exception e) {
             logger.error("Error sending to Kafka", e);

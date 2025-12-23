@@ -20,17 +20,15 @@ public class ApplicationConfig {
 
     private final UserRepository userRepository;
 
-    // To ten bean powodował pętlę - teraz jest bezpieczny tutaj
     @Bean
     public UserDetailsService userDetailsService() {
         return username -> userRepository.findByEmail(username)
-                .orElseThrow(() -> new UsernameNotFoundException("Użytkownik nie znaleziony"));
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService());
+        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider(userDetailsService());
         authProvider.setPasswordEncoder(passwordEncoder());
         return authProvider;
     }
@@ -45,7 +43,6 @@ public class ApplicationConfig {
         return new BCryptPasswordEncoder();
     }
 
-    // Jeśli miałeś tu wcześniej RestTemplate, zostaw go
     @Bean
     public RestTemplate restTemplate() {
         return new RestTemplate();

@@ -24,7 +24,7 @@ public class AuthenticationService {
     public AuthenticationResponse register(RegisterRequest request) {
         var user = User.builder()
                 .email(request.email())
-                .password(passwordEncoder.encode(request.password())) // Hashowanie!
+                .password(passwordEncoder.encode(request.password()))
                 .role(Role.USER)
                 .build();
 
@@ -37,7 +37,6 @@ public class AuthenticationService {
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.email(), request.password())
         );
-        // Jeśli doszliśmy tutaj, to login i hasło są poprawne
         var user = repository.findByEmail(request.email()).orElseThrow();
         var jwtToken = jwtService.generateToken(user);
         return new AuthenticationResponse(jwtToken);

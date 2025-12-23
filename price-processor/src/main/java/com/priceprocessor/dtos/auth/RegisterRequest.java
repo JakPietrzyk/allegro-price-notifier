@@ -16,4 +16,8 @@ public record RegisterRequest(
 
         String firstName,
         String lastName
-) {}
+) {
+        public RegisterRequest(String email, String password) {
+                this(email, password, "", "");
+        }
+}
