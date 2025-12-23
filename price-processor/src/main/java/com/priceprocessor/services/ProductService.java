@@ -1,8 +1,6 @@
 package com.priceprocessor.services;
 
-import com.priceprocessor.dtos.api.ProductDetailsResponse;
-import com.priceprocessor.dtos.api.ProductObservationRequest;
-import com.priceprocessor.dtos.api.ProductObservationResponse;
+import com.priceprocessor.dtos.api.*;
 import com.priceprocessor.dtos.crawler.PriceResponse;
 import com.priceprocessor.models.ProductObservation;
 import com.priceprocessor.repositories.ProductRepository;
@@ -49,7 +47,7 @@ public class ProductService {
     }
 
     @Transactional
-    public ProductObservationResponse startObservingProductByName(ProductObservationRequest request) {
+    public ProductObservationResponse startObservingProductByName(ProductObservationByNameRequest request) {
         Optional<PriceResponse> response = priceClient.checkPriceByName(request.productName());
         if (response.isEmpty()) {
             throw new RuntimeException("Price not found");
@@ -58,7 +56,7 @@ public class ProductService {
     }
 
     @Transactional
-    public ProductObservationResponse startObservingProductByUrl(ProductObservationRequest request) {
+    public ProductObservationResponse startObservingProductByUrl(ProductObservationByUrlRequest request) {
         Optional<PriceResponse> response = priceClient.checkPriceByUrl(request.productUrl());
         if (response.isEmpty()) {
             throw new RuntimeException("Price not found");

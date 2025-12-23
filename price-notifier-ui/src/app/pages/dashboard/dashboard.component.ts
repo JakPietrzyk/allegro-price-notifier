@@ -1,36 +1,33 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { HttpClient } from '@angular/common/http';
-import { AuthService } from '../../services/auth.service';
-import {environment} from '../../../environments/environment';
-import {RouterLink} from '@angular/router';
+import { RouterLink } from '@angular/router';
+import { Observable } from 'rxjs';
 
-interface ProductObservation {
-  id?: number;
-  productName: string;
-  currentPrice: number;
-  productUrl: string;
-  lastChecked?: string;
-}
+import { ProductObservation } from '../../models/product-observation.model';
+import { ProductService } from '../../services/product/product.service';
+import { AuthService } from '../../services/auth/auth.service';
+import {DASHBOARD_CONSTANTS} from '../../core/constants/dashboard.component';
 
 @Component({
   selector: 'app-dashboard',
   standalone: true,
   imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './dashboard.component.html',
-  styleUrl: './dashboard.component.css'
+  styleUrl: './dashboard.component.scss'
 })
 export class DashboardComponent implements OnInit {
+  private readonly productService = inject(ProductService);
+  private readonly authService = inject(AuthService);
+
+  protected readonly texts = DASHBOARD_CONSTANTS;
+
   products = signal<ProductObservation[]>([]);
   loading = signal<boolean>(false);
 
   newProductName = signal<string>('');
   newProductUrl = signal<string>('');
 
-  private http = inject(HttpClient);
-  private authService = inject(AuthService);
-  private apiUrl = `${environment.apiUrl}/products`;
   ngOnInit() {
     this.loadProducts();
   }
@@ -41,53 +38,50 @@ export class DashboardComponent implements OnInit {
 
   loadProducts() {
     this.loading.set(true);
-
-    this.http.get<ProductObservation[]>(this.apiUrl)
-      .subscribe({
-        next: (data) => {
-          this.products.set(data);
-          this.loading.set(false);
-        },
-        error: (err) => {
-          console.error(err);
-          this.loading.set(false);
-        }
-      });
+    this.productService.getAll().subscribe({
+      next: (data) => {
+        this.products.set(data);
+        this.loading.set(false);
+      },
+      error: (err) => {
+        console.error(err);
+        alert(this.texts.MESSAGES.ERRORS.LOAD_FAILED);
+        this.loading.set(false);
+      }
+    });
   }
 
   addProductByName() {
-    const nameValue = this.newProductName();
+    const name = this.newProductName();
+    if (!name) return;
 
-    if (!nameValue) return;
-
-    this.executeAdd(`${this.apiUrl}/search`, {
-      productName: nameValue,
-    });
-
-    this.newProductName.set('');
+    this.executeAddOperation(
+      this.productService.addByName(name),
+      () => this.newProductName.set('')
+    );
   }
 
   addProductByUrl() {
-    const urlValue = this.newProductUrl();
+    const url = this.newProductUrl();
+    if (!url) return;
 
-    if (!urlValue) return;
-
-    this.executeAdd(`${this.apiUrl}/url`, {
-      productUrl: urlValue,
-    });
-
-    this.newProductUrl.set('');
+    this.executeAddOperation(
+      this.productService.addByUrl(url),
+      () => this.newProductUrl.set('')
+    );
   }
 
-  private executeAdd(url: string, body: any) {
+  private executeAddOperation(operation: Observable<unknown>, resetInput: () => void) {
     this.loading.set(true);
 
-    this.http.post(url, body).subscribe({
+    operation.subscribe({
       next: () => {
+        resetInput();
         this.loadProducts();
       },
-      error: (err) => {
-        alert('Błąd podczas dodawania produktu.');
+      error: (err: unknown) => {
+        console.error(err);
+        alert(this.texts.MESSAGES.ERRORS.ADD_FAILED);
         this.loading.set(false);
       }
     });
@@ -95,25 +89,24 @@ export class DashboardComponent implements OnInit {
 
   deleteProduct(id: number | undefined, event: Event) {
     event.stopPropagation();
-
     if (!id) return;
 
-    const confirmed = window.confirm('Czy na pewno chcesz usunąć ten produkt i jego historię?');
-
-    if (confirmed) {
-      this.loading.set(true);
-
-      this.http.delete(`${this.apiUrl}/${id}`).subscribe({
-        next: () => {
-          this.products.update(currentProducts => currentProducts.filter(p => p.id !== id));
-          this.loading.set(false);
-        },
-        error: (err) => {
-          console.error(err);
-          alert('Nie udało się usunąć produktu.');
-          this.loading.set(false);
-        }
-      });
+    if (!confirm(this.texts.MESSAGES.CONFIRM_DELETE)) {
+      return;
     }
+
+    this.loading.set(true);
+
+    this.productService.delete(id).subscribe({
+      next: () => {
+        this.products.update(current => current.filter(p => p.id !== id));
+        this.loading.set(false);
+      },
+      error: (err) => {
+        console.error(err);
+        alert(this.texts.MESSAGES.ERRORS.DELETE_FAILED);
+        this.loading.set(false);
+      }
+    });
   }
 }

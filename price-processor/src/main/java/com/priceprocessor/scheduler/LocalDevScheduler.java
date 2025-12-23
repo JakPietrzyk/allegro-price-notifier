@@ -17,7 +17,7 @@ public class LocalDevScheduler {
 
     private final PriceUpdateService priceUpdateService;
 
-    @Scheduled(fixedDelay = 60000)
+    @Scheduled(fixedDelay = 60000 * 60) // 1 hour
     public void runLocalBatch() {
         log.info("[LOCAL DEV] Triggering scheduled price update...");
         priceUpdateService.updateOutdatedPrices();

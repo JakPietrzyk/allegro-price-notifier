@@ -1,9 +1,6 @@
 package com.priceprocessor.controllers;
 
-import com.priceprocessor.dtos.api.ProductDetailsResponse;
-import com.priceprocessor.dtos.api.ProductObservationRequest;
-import com.priceprocessor.dtos.api.ProductObservationResponse;
-import com.priceprocessor.models.ProductObservation;
+import com.priceprocessor.dtos.api.*;
 import com.priceprocessor.services.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -25,13 +22,13 @@ public class ProductController {
     }
 
     @PostMapping("/search")
-    public ResponseEntity<ProductObservationResponse> addProductByName(@RequestBody ProductObservationRequest request) {
+    public ResponseEntity<ProductObservationResponse> addProductByName(@RequestBody ProductObservationByNameRequest request) {
         ProductObservationResponse created = productService.startObservingProductByName(request);
         return ResponseEntity.ok(created);
     }
 
     @PostMapping("/url")
-    public ResponseEntity<ProductObservationResponse> addProductByUrl(@RequestBody ProductObservationRequest request) {
+    public ResponseEntity<ProductObservationResponse> addProductByUrl(@RequestBody ProductObservationByUrlRequest request) {
         ProductObservationResponse created = productService.startObservingProductByUrl(request);
         return ResponseEntity.ok(created);
     }

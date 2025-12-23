@@ -2,8 +2,31 @@ import base64
 import json
 import os
 import smtplib
+import logging
+from logging.handlers import TimedRotatingFileHandler
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+LOG_DIR = 'logs'
+
+if not os.path.exists(LOG_DIR):
+    os.makedirs(LOG_DIR)
+
+logger = logging.getLogger("EmailSender")
+logger.setLevel(logging.INFO)
+
+if not logger.handlers:
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    log_file_path = os.path.join(LOG_DIR, 'app.log')
+
+    file_handler = TimedRotatingFileHandler(log_file_path, when='d', interval=1, backupCount=30)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
 def send_email_pubsub(event, context):
     try:
@@ -11,17 +34,17 @@ def send_email_pubsub(event, context):
             pubsub_message = base64.b64decode(event['data']).decode('utf-8')
             message_data = json.loads(pubsub_message)
         else:
-            print("Missing data in message")
+            logger.warning("Missing data in message")
             return
 
-        print(f"Received send request: {message_data}")
+        logger.info(f"Received send request: {message_data}")
 
         recipient = message_data.get('to')
         subject = message_data.get('subject')
         body = message_data.get('body')
 
         if not recipient or not body:
-            print("Missing content in request")
+            logger.warning("Missing content in request (recipient or body)")
             return
 
         smtp_server = "smtp-relay.brevo.com"
@@ -31,7 +54,7 @@ def send_email_pubsub(event, context):
         smtp_sender = os.environ.get('SMTP_SENDER')
 
         if not smtp_user or not smtp_pass:
-            print("Missing SMTP configuration")
+            logger.error("Missing SMTP configuration in environment variables")
             return
 
         msg = MIMEMultipart()
@@ -46,8 +69,8 @@ def send_email_pubsub(event, context):
         server.sendmail(smtp_sender, recipient, msg.as_string())
         server.quit()
 
-        print(f"Email sent to {recipient}")
+        logger.info(f"Email sent successfully to {recipient}")
 
     except Exception as e:
-        print(f"Error sending mail: {e}")
+        logger.error(f"Error sending mail: {e}", exc_info=True)
         raise e

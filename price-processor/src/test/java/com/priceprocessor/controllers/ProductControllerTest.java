@@ -1,9 +1,7 @@
 package com.priceprocessor.controllers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.priceprocessor.dtos.api.ProductDetailsResponse;
-import com.priceprocessor.dtos.api.ProductObservationRequest;
-import com.priceprocessor.dtos.api.ProductObservationResponse;
+import com.priceprocessor.dtos.api.*;
 import com.priceprocessor.services.JwtService;
 import com.priceprocessor.services.ProductService;
 import org.junit.jupiter.api.Test;
@@ -18,7 +16,6 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -62,10 +59,10 @@ class ProductControllerTest {
     @Test
     void shouldAddProductByName() throws Exception {
         // Arrange
-        ProductObservationRequest request = new ProductObservationRequest("Laptop", null);
+        ProductObservationByNameRequest request = new ProductObservationByNameRequest("Laptop");
         ProductObservationResponse response = new ProductObservationResponse(1L, "Laptop Pro", new BigDecimal("5000"), "http://ceneo.pl/1");
 
-        when(productService.startObservingProductByName(any(ProductObservationRequest.class))).thenReturn(response);
+        when(productService.startObservingProductByName(any(ProductObservationByNameRequest.class))).thenReturn(response);
 
         // Act & Assert
         mockMvc.perform(post("/api/products/search")
@@ -79,10 +76,10 @@ class ProductControllerTest {
     @Test
     void shouldAddProductByUrl() throws Exception {
         // Arrange
-        ProductObservationRequest request = new ProductObservationRequest("Any Name", "http://ceneo.pl/123");
+        ProductObservationByUrlRequest request = new ProductObservationByUrlRequest("http://ceneo.pl/123");
         ProductObservationResponse response = new ProductObservationResponse(1L, "Console", new BigDecimal("2000"), "http://ceneo.pl/123");
 
-        when(productService.startObservingProductByUrl(any(ProductObservationRequest.class))).thenReturn(response);
+        when(productService.startObservingProductByUrl(any(ProductObservationByUrlRequest.class))).thenReturn(response);
 
         // Act & Assert
         mockMvc.perform(post("/api/products/url")
@@ -113,8 +110,8 @@ class ProductControllerTest {
 
         // Act & Assert
         mockMvc.perform(delete("/api/products/{id}", productId))
-                .andExpect(status().isNoContent()); // Oczekujemy kodu 204
+                .andExpect(status().isNoContent());
 
-        verify(productService).deleteObservedProduct(eq(productId));
+        verify(productService).deleteObservedProduct(productId);
     }
 }

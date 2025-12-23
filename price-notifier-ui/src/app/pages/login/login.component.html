@@ -1,38 +1,54 @@
 <div class="login-wrapper">
   <div class="login-card">
-    <h2>Zaloguj się</h2>
+    <h2>{{ texts.UI.TITLE }}</h2>
 
     <form (ngSubmit)="onSubmit()">
       <div class="form-group">
-        <label for="email">Email</label>
+        <label for="email">{{ texts.UI.EMAIL_LABEL }}</label>
         <input
           type="email"
           id="email"
-          [(ngModel)]="email"
           name="email"
-          required
-          placeholder="np. admin@test.pl">
-      </div>
-
-      <div class="form-group">
-        <label for="password">Hasło</label>
-        <input
-          type="password"
-          id="password"
-          [(ngModel)]="password"
-          name="password"
+          [ngModel]="email()"
+          (ngModelChange)="email.set($event)"
+          [placeholder]="texts.UI.EMAIL_PLACEHOLDER"
+          [disabled]="loading()"
           required>
       </div>
 
-      <button type="submit" class="btn-primary">Wejdź</button>
+      <div class="form-group">
+        <label for="password">{{ texts.UI.PASSWORD_LABEL }}</label>
+        <input
+          type="password"
+          id="password"
+          name="password"
+          [ngModel]="password()"
+          (ngModelChange)="password.set($event)"
+          [disabled]="loading()"
+          required>
+      </div>
+
+      <button
+        type="submit"
+        class="btn-primary"
+        [disabled]="loading()">
+        @if (loading()) {
+          {{ texts.UI.SUBMIT_BTN_LOADING }}
+        } @else {
+          {{ texts.UI.SUBMIT_BTN }}
+        }
+      </button>
     </form>
 
-    <div *ngIf="errorMessage" class="error-msg">
-      {{ errorMessage }}
-    </div>
+    @if (errorMessage()) {
+      <div class="error-msg">
+        {{ errorMessage() }}
+      </div>
+    }
 
-    <div style="margin-top: 15px; text-align: center;">
-      Nie masz konta? <a routerLink="/register" style="color: #007bff; text-decoration: none;">Zarejestruj się</a>
+    <div class="register-hint">
+      {{ texts.UI.NO_ACCOUNT }}
+      <a routerLink="/register">{{ texts.UI.REGISTER_LINK }}</a>
     </div>
   </div>
 </div>

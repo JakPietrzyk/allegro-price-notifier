@@ -1,8 +1,6 @@
 package com.priceprocessor.services;
 
-import com.priceprocessor.dtos.api.ProductDetailsResponse;
-import com.priceprocessor.dtos.api.ProductObservationRequest;
-import com.priceprocessor.dtos.api.ProductObservationResponse;
+import com.priceprocessor.dtos.api.*;
 import com.priceprocessor.dtos.crawler.PriceResponse;
 import com.priceprocessor.models.PriceHistory;
 import com.priceprocessor.models.ProductObservation;
@@ -97,7 +95,7 @@ class ProductServiceTest {
     void shouldStartObservingProductByName_WhenPriceIsFound() {
         // Arrange
         String productName = "iPhone 15";
-        ProductObservationRequest request = new ProductObservationRequest(productName, null);
+        ProductObservationByNameRequest request = new ProductObservationByNameRequest(productName);
 
         PriceResponse priceResponse = new PriceResponse("iPhone 15 Pro", new BigDecimal("5000"), "PLN", "http://ceneo.pl/123");
 
@@ -121,7 +119,7 @@ class ProductServiceTest {
     void shouldThrowException_WhenStartObservingByNameAndPriceNotFound() {
         // Arrange
         String productName = "Unicorn";
-        ProductObservationRequest request = new ProductObservationRequest(productName, null);
+        ProductObservationByNameRequest request = new ProductObservationByNameRequest(productName);
 
         when(priceClient.checkPriceByName(productName)).thenReturn(Optional.empty());
 
@@ -137,13 +135,12 @@ class ProductServiceTest {
     void shouldStartObservingProductByUrl_WhenPriceIsFound() {
         // Arrange
         String url = "http://ceneo.pl/abc";
-        String name = "Any Name";
 
-        ProductObservationRequest request = new ProductObservationRequest(name, CURRENT_USER_EMAIL, url);
+        ProductObservationByUrlRequest request = new ProductObservationByUrlRequest(url);
 
         PriceResponse priceResponse = new PriceResponse("Laptop", new BigDecimal("3000"), "PLN", url);
 
-        when(priceClient.checkPriceByUrl(eq(url))).thenReturn(Optional.of(priceResponse));
+        when(priceClient.checkPriceByUrl(url)).thenReturn(Optional.of(priceResponse));
 
         // Act
         productService.startObservingProductByUrl(request);

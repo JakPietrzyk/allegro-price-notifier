@@ -1,0 +1,41 @@
+@use 'variables' as vars;
+@use 'mixins';
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  color: vars.$text-dark;
+  background-color: #fff;
+  margin: 0;
+}
+
+.btn {
+  @include mixins.btn-base;
+}
+
+.btn-primary {
+  @include mixins.btn-base;
+  @include mixins.btn-variant(vars.$primary);
+}
+
+.btn-success {
+  @include mixins.btn-base;
+  @include mixins.btn-variant(vars.$success);
+}
+
+.btn-danger {
+  @include mixins.btn-base;
+  @include mixins.btn-variant(vars.$danger);
+}
+
+.btn-icon {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  transition: transform 0.2s;
+
+  &:hover {
+    transform: scale(1.1);
+  }
+}

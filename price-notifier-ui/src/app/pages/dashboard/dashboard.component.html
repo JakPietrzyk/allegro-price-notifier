@@ -1,75 +1,100 @@
 <div class="dashboard-container">
+
   <header class="top-bar">
-    <h1>Price Notifier 🛒</h1>
-    <button (click)="logout()" class="btn-logout">Wyloguj</button>
+    <h1>{{ texts.UI.header.title }}</h1>
+
+    <button (click)="logout()" class="btn-danger">
+      {{ texts.UI.header.logoutBtn }}
+    </button>
   </header>
 
   <main>
     <section class="actions-panel">
+
       <div class="action-card">
-        <h3>Dodaj po nazwie</h3>
+        <h3>{{ texts.UI.addByName.title }}</h3>
         <div class="input-group">
           <input
             [ngModel]="newProductName()"
             (ngModelChange)="newProductName.set($event)"
-            placeholder="np. PlayStation 5"
+            [placeholder]="texts.UI.addByName.placeholder"
             (keyup.enter)="addProductByName()">
 
-          <button (click)="addProductByName()" [disabled]="loading()">Szukaj</button>
+          <button
+            (click)="addProductByName()"
+            [disabled]="loading()"
+            class="btn-success">
+            {{ texts.UI.addByName.button }}
+          </button>
         </div>
       </div>
 
       <div class="action-card">
-        <h3>Dodaj link Ceneo</h3>
+        <h3>{{ texts.UI.addByUrl.title }}</h3>
         <div class="input-group">
           <input
             [ngModel]="newProductUrl()"
             (ngModelChange)="newProductUrl.set($event)"
-            placeholder="Link do Ceneo"
+            [placeholder]="texts.UI.addByUrl.placeholder"
             (keyup.enter)="addProductByUrl()">
 
-          <button (click)="addProductByUrl()" [disabled]="loading()">Link</button>
+          <button
+            (click)="addProductByUrl()"
+            [disabled]="loading()"
+            class="btn-success">
+            {{ texts.UI.addByUrl.button }}
+          </button>
         </div>
       </div>
     </section>
 
     <section class="products-grid">
 
-      <div *ngIf="loading()" class="loader">
-        <p>🔄 Pobieranie aktualnych cen...</p>
-      </div>
-
-      <div *ngIf="!loading() && products().length === 0" class="empty-state">
-        <p>Brak produktów. Dodaj coś powyżej!</p>
-      </div>
-
-      <ng-container *ngIf="!loading() && products().length > 0">
-        <div
-          *ngFor="let product of products()"
-          class="product-card clickable"
-          [routerLink]="['/details', product.id]">
-
-          <button class="delete-btn" (click)="deleteProduct(product.id, $event)" title="Usuń produkt">
-            &times; </button>
-
-          <div class="card-header">
-            <h4>{{ product.productName }}</h4>
-          </div>
-
-          <div class="card-body">
-            <p class="price">{{ product.currentPrice | number:'1.2-2' }} PLN</p>
-            <small *ngIf="product.lastChecked" style="color: gray">
-              Ost. sprawdzenie: {{ product.lastChecked | date:'short' }}
-            </small>
-          </div>
-
-          <div class="card-footer" (click)="$event.stopPropagation()">
-            <a [href]="product.productUrl" target="_blank" class="btn-link">
-              Oferta Ceneo ↗
-            </a>
-          </div>
+      @if (loading()) {
+        <div class="loader">
+          <p>{{ texts.UI.status.loading }}</p>
         </div>
-      </ng-container>
+      } @else {
+        @for (product of products(); track product.id) {
+
+          <div
+            class="product-card clickable"
+            [routerLink]="['/details', product.id]">
+
+            <button
+              class="delete-btn"
+              (click)="deleteProduct(product.id, $event)"
+              [title]="texts.UI.product.deleteTitle">
+              &times;
+            </button>
+
+            <div class="card-header">
+              <h4>{{ product.productName }}</h4>
+            </div>
+
+            <div class="card-body">
+              <p class="price">{{ product.currentPrice | number:'1.2-2' }} PLN</p>
+
+              @if (product.lastChecked) {
+                <small style="color: gray">
+                  {{ texts.UI.status.lastChecked }} {{ product.lastChecked | date:'short' }}
+                </small>
+              }
+            </div>
+
+            <div class="card-footer" (click)="$event.stopPropagation()">
+              <a [href]="product.productUrl" target="_blank" class="btn-link">
+                {{ texts.UI.product.offerLink }}
+              </a>
+            </div>
+          </div>
+
+        } @empty {
+          <div class="empty-state">
+            <p>{{ texts.UI.status.empty }}</p>
+          </div>
+        }
+      }
 
     </section>
   </main>

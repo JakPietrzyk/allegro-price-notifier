@@ -1,72 +1,159 @@
-import pytest
-import main
-from unittest.mock import patch, Mock
-
-SEARCH_HTML = """
-<div class="cat-prod-row">
-    <a class="js_seo-url" href="/123456">Link do produktu</a>
-</div>
-"""
-
-PRODUCT_HTML = """
-<h1 class="product-top__product-info__name">Konsola Testowa</h1>
-<div class="product-offers__list">
-    <div class="product-offer__container">
-        <span class="price"><span class="value">3000</span></span>
-        <div class="product-offer__details">
-            <img class="store-logo" alt="Drogi Sklep" />
-        </div>
-    </div>
-    <div class="product-offer__container">
-        <span class="price">
-            <span class="value">2 499</span><span class="penny">,99</span>
-        </span>
-        <div class="product-offer__details">
-            <img class="store-logo" alt="MediaExpert" />
-        </div>
-    </div>
-</div>
-"""
+import unittest
+from unittest.mock import patch, MagicMock
+import json
+from bs4 import BeautifulSoup
+from main import app, get_soup, find_best_product_link, extract_cheapest_offer
 
 
-@pytest.fixture
-def client():
-    main.app.config['TESTING'] = True
-    with main.app.test_client() as client:
-        yield client
+class TestScraperUtils(unittest.TestCase):
+
+    def setUp(self):
+        self.html_search_results = """
+        <html>
+            <body>
+                <div class="cat-prod-row">
+                    <strong class="cat-prod-row__name">
+                        <a href="/product-123.htm" class="js_seoUrl">Test Product</a>
+                    </strong>
+                </div>
+            </body>
+        </html>
+        """
+
+        self.html_product_page = """
+        <html>
+            <body>
+                <h1 class="product-top__product-info__name">Mock Product</h1>
+                <div class="product-offer__container">
+                    <span class="price">
+                        <span class="value">2000</span>
+                    </span>
+                </div>
+                <div class="product-offer__container">
+                    <span class="price">
+                        <span class="value">1500</span>
+                        <span class="penny">,50</span>
+                    </span>
+                </div>
+            </body>
+        </html>
+        """
+
+    @patch('main.requests.get')
+    def test_get_soup_returns_soup_on_200(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.content = b"<html></html>"
+        mock_get.return_value = mock_response
+
+        result = get_soup("http://example.com")
+        self.assertIsInstance(result, BeautifulSoup)
+
+    @patch('main.requests.get')
+    def test_get_soup_returns_none_on_404(self, mock_get):
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+
+        result = get_soup("http://example.com")
+        self.assertIsNone(result)
+
+    @patch('main.requests.get')
+    def test_get_soup_returns_none_on_exception(self, mock_get):
+        mock_get.side_effect = Exception("Connection error")
+        result = get_soup("http://example.com")
+        self.assertIsNone(result)
+
+    @patch('main.get_soup')
+    def test_find_best_product_link_returns_correct_url(self, mock_get_soup):
+        mock_get_soup.return_value = BeautifulSoup(self.html_search_results, 'html.parser')
+
+        result = find_best_product_link("Test Product")
+        self.assertEqual(result, "https://www.ceneo.pl/product-123.htm")
+
+    @patch('main.get_soup')
+    def test_find_best_product_link_returns_search_url_on_direct_match(self, mock_get_soup):
+        direct_html = '<html><body><table class="product-offers"></table></body></html>'
+        mock_get_soup.return_value = BeautifulSoup(direct_html, 'html.parser')
+
+        result = find_best_product_link("Direct Match Item")
+        self.assertIn("https://www.ceneo.pl/;szukaj-", result)
+
+    @patch('main.get_soup')
+    def test_find_best_product_link_returns_none_if_not_found(self, mock_get_soup):
+        mock_get_soup.return_value = BeautifulSoup("<html></html>", 'html.parser')
+        result = find_best_product_link("Unknown")
+        self.assertIsNone(result)
+
+    @patch('main.get_soup')
+    def test_extract_cheapest_offer_returns_min_price(self, mock_get_soup):
+        mock_get_soup.return_value = BeautifulSoup(self.html_product_page, 'html.parser')
+
+        title, price = extract_cheapest_offer("http://example.com/p1")
+        self.assertEqual(title, "Mock Product")
+        self.assertEqual(price, 1500.50)
+
+    @patch('main.get_soup')
+    def test_extract_cheapest_offer_returns_zero_if_no_offers(self, mock_get_soup):
+        mock_get_soup.return_value = BeautifulSoup("<html><h1>Title</h1></html>", 'html.parser')
+
+        title, price = extract_cheapest_offer("http://example.com/p1")
+        self.assertEqual(price, 0.0)
 
 
-@patch('main.requests.get')
-def test_find_price_flow(mock_get, client):
-    mock_search_resp = Mock()
-    mock_search_resp.status_code = 200
-    mock_search_resp.content = SEARCH_HTML
+class TestFlaskEndpoints(unittest.TestCase):
 
-    mock_product_resp = Mock()
-    mock_product_resp.status_code = 200
-    mock_product_resp.content = PRODUCT_HTML
+    def setUp(self):
+        self.app = app.test_client()
+        self.app.testing = True
 
-    mock_get.side_effect = [mock_search_resp, mock_product_resp]
+    @patch('main.extract_cheapest_offer')
+    @patch('main.find_best_product_link')
+    def test_find_price_success(self, mock_find, mock_extract):
+        mock_find.return_value = "https://ceneo.pl/1"
+        mock_extract.return_value = ("Test Item", 100.0)
 
-    response = client.post('/find_price', json={'productName': 'Konsola'})
+        response = self.app.post('/find_price', json={"productName": "Item"})
+        data = response.get_json()
 
-    assert response.status_code == 200
-    data = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data['price'], 100.0)
+        self.assertEqual(data['found_product_name'], "Test Item")
 
-    assert data['search_query'] == 'Konsola'
-    assert data['found_product_name'] == 'Konsola Testowa'
-    assert data['price'] == 2499.99
-    assert data['shop_name'] == 'MediaExpert'
-    assert "ceneo.pl/123456" in data['ceneo_url']
+    def test_find_price_missing_payload(self):
+        response = self.app.post('/find_price', json={})
+        self.assertEqual(response.status_code, 400)
+
+    @patch('main.find_best_product_link')
+    def test_find_price_product_not_found(self, mock_find):
+        mock_find.return_value = None
+        response = self.app.post('/find_price', json={"productName": "Ghost Item"})
+        self.assertEqual(response.status_code, 404)
+
+    @patch('main.extract_cheapest_offer')
+    def test_scrape_direct_url_success(self, mock_extract):
+        mock_extract.return_value = ("Direct Item", 50.0)
+        payload = {"url": "https://www.ceneo.pl/555"}
+
+        response = self.app.post('/scrape_direct_url', json=payload)
+        data = response.get_json()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data['price'], 50.0)
+
+    def test_scrape_direct_url_invalid_domain(self):
+        payload = {"url": "https://www.google.com"}
+        response = self.app.post('/scrape_direct_url', json=payload)
+        self.assertEqual(response.status_code, 400)
+
+    @patch('main.extract_cheapest_offer')
+    def test_scrape_direct_url_price_not_found(self, mock_extract):
+        mock_extract.return_value = ("Item", 0.0)
+        payload = {"url": "https://www.ceneo.pl/555"}
+
+        response = self.app.post('/scrape_direct_url', json=payload)
+        self.assertEqual(response.status_code, 404)
 
 
-@patch('main.requests.get')
-def test_product_not_found(mock_get, client):
-    mock_resp = Mock()
-    mock_resp.status_code = 200
-    mock_resp.content = "<html><body>No results</body></html>"
-    mock_get.return_value = mock_resp
-
-    response = client.post('/find_price', json={'productName': 'invalid'})
-
-    assert response.status_code == 404
+if __name__ == '__main__':
+    unittest.main()

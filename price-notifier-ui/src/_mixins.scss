@@ -1,0 +1,34 @@
+@use 'sass:color';
+@use 'variables' as vars;
+
+@mixin btn-base {
+  border: none;
+  border-radius: vars.$border-radius;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+}
+
+@mixin btn-variant($bg-color, $text-color: white) {
+  background-color: $bg-color;
+  color: $text-color;
+
+  &:hover:not(:disabled) {
+    background-color: color.scale($bg-color, $lightness: -10%);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+}
