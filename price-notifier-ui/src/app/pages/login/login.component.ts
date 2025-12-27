@@ -20,7 +20,6 @@ export class LoginComponent implements OnInit {
 
   email = signal<string>('');
   password = signal<string>('');
-  errorMessage = signal<string>('');
   loading = signal<boolean>(false);
 
   ngOnInit() {
@@ -31,7 +30,6 @@ export class LoginComponent implements OnInit {
 
   onSubmit() {
     if (this.loading()) return;
-    this.errorMessage.set('');
     this.loading.set(true);
 
     const credentials = {
@@ -44,9 +42,7 @@ export class LoginComponent implements OnInit {
         this.loading.set(false);
         this.router.navigate(['/dashboard']);
       },
-      error: (err) => {
-        console.error(err);
-        this.errorMessage.set(this.texts.MESSAGES.ERRORS.INVALID_CREDENTIALS);
+      error: () => {
         this.loading.set(false);
       }
     });

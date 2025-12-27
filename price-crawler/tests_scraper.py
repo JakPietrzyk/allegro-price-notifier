@@ -1,12 +1,14 @@
 import unittest
 from unittest.mock import patch, MagicMock
-import json
 from bs4 import BeautifulSoup
+
+# Importujemy aplikację. Zakładam, że Twój plik nazywa się main.py
 from main import app, get_soup, find_best_product_link, extract_cheapest_offer
+# Importujemy Enum, żeby porównywać wartości (opcjonalnie, można sprawdzać stringi)
+from scraper_error_code import ScraperErrorCode
 
 
 class TestScraperUtils(unittest.TestCase):
-
     def setUp(self):
         self.html_search_results = """
         <html>
@@ -102,7 +104,6 @@ class TestScraperUtils(unittest.TestCase):
 
 
 class TestFlaskEndpoints(unittest.TestCase):
-
     def setUp(self):
         self.app = app.test_client()
         self.app.testing = True
@@ -122,13 +123,21 @@ class TestFlaskEndpoints(unittest.TestCase):
 
     def test_find_price_missing_payload(self):
         response = self.app.post('/find_price', json={})
+        data = response.get_json()
+
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(data['errorCode'], ScraperErrorCode.MISSING_PARAM.value)
+        self.assertIn("Missing parameter", data['message'])
 
     @patch('main.find_best_product_link')
     def test_find_price_product_not_found(self, mock_find):
         mock_find.return_value = None
+
         response = self.app.post('/find_price', json={"productName": "Ghost Item"})
+        data = response.get_json()
+
         self.assertEqual(response.status_code, 404)
+        self.assertEqual(data['errorCode'], ScraperErrorCode.PRODUCT_NOT_FOUND.value)
 
     @patch('main.extract_cheapest_offer')
     def test_scrape_direct_url_success(self, mock_extract):
@@ -143,16 +152,31 @@ class TestFlaskEndpoints(unittest.TestCase):
 
     def test_scrape_direct_url_invalid_domain(self):
         payload = {"url": "https://www.google.com"}
+
         response = self.app.post('/scrape_direct_url', json=payload)
+        data = response.get_json()
+
         self.assertEqual(response.status_code, 400)
+        self.assertEqual(data['errorCode'], ScraperErrorCode.INVALID_DOMAIN.value)
 
     @patch('main.extract_cheapest_offer')
-    def test_scrape_direct_url_price_not_found(self, mock_extract):
+    def test_scrape_direct_url_price_parsing_error(self, mock_extract):
         mock_extract.return_value = ("Item", 0.0)
         payload = {"url": "https://www.ceneo.pl/555"}
 
         response = self.app.post('/scrape_direct_url', json=payload)
-        self.assertEqual(response.status_code, 404)
+        data = response.get_json()
+
+        self.assertEqual(response.status_code, 422)  # Zmienione z 404 na 422
+        self.assertEqual(data['errorCode'], ScraperErrorCode.PRICE_PARSING_ERROR.value)
+        self.assertEqual(data['message'], "Invalid price")
+
+    def test_scrape_direct_url_missing_param(self):
+        response = self.app.post('/scrape_direct_url', json={})
+        data = response.get_json()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(data['errorCode'], ScraperErrorCode.MISSING_PARAM.value)
 
 
 if __name__ == '__main__':

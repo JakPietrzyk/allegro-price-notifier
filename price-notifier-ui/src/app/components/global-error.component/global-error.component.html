@@ -1,0 +1,6 @@
+@if (errorService.error()) {
+  <div class="error-toast">
+    <span>{{ errorService.error() }}</span>
+    <button (click)="errorService.clear()">✕</button>
+  </div>
+}

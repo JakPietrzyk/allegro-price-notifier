@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.priceprocessor.dtos.auth.AuthenticationRequest;
 import com.priceprocessor.dtos.auth.AuthenticationResponse;
 import com.priceprocessor.dtos.auth.RegisterRequest;
+import com.priceprocessor.exceptions.InvalidCredentialsException;
+import com.priceprocessor.exceptions.UserAlreadyExistsException;
 import com.priceprocessor.services.AuthenticationService;
 import com.priceprocessor.services.JwtService;
 import org.junit.jupiter.api.Test;
@@ -55,15 +57,18 @@ class AuthenticationControllerTest {
     }
 
     @Test
-    void shouldReturnBadRequest_WhenRegisterRequestIsInvalid() throws Exception {
-        // Arrange
-        RegisterRequest invalidRequest = new RegisterRequest("", "");
+    void shouldReturnConflict_WhenUserAlreadyExists() throws Exception {
+        RegisterRequest request = new RegisterRequest("exists@test.com", "pass123", "", "");
 
-        // Act & Assert
+        when(service.register(any()))
+                .thenThrow(new UserAlreadyExistsException("exists@test.com"));
+
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidRequest)))
-                .andExpect(status().isBadRequest());
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.statusCode").value(409))
+                .andExpect(jsonPath("$.message").value("User with email exists@test.com already exists"));
     }
 
     @Test
@@ -83,18 +88,27 @@ class AuthenticationControllerTest {
     }
 
     @Test
-    void shouldReturnForbidden_WhenAuthenticationFails() throws Exception {
-        // Arrange
-        AuthenticationRequest request = new AuthenticationRequest("wrong@test.com", "wrongpass");
+    void shouldReturnUnauthorized_WhenAuthenticationFails() throws Exception {
+        AuthenticationRequest request = new AuthenticationRequest("wrong@test.com", "wrong");
 
-        when(service.authenticate(any(AuthenticationRequest.class)))
-                .thenThrow(new RuntimeException("Bad credentials"));
+        when(service.authenticate(any()))
+                .thenThrow(new InvalidCredentialsException());
 
-        // Act & Assert
         mockMvc.perform(post("/api/auth/authenticate")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Błąd logowania")));
+                .andExpect(status().isUnauthorized()) // Oczekujemy 401
+                .andExpect(jsonPath("$.statusCode").value(401))
+                .andExpect(jsonPath("$.message").value("Invalid email or password"));
+    }
+
+    @Test
+    void shouldReturnBadRequest_WhenValidationFails() throws Exception {
+        RegisterRequest invalidRequest = new RegisterRequest("", "", "", "");
+
+        mockMvc.perform(post("/api/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(invalidRequest)))
+                .andExpect(status().isBadRequest());
     }
 }

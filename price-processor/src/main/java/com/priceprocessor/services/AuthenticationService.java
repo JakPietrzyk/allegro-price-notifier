@@ -3,6 +3,8 @@ package com.priceprocessor.services;
 import com.priceprocessor.dtos.auth.AuthenticationRequest;
 import com.priceprocessor.dtos.auth.AuthenticationResponse;
 import com.priceprocessor.dtos.auth.RegisterRequest;
+import com.priceprocessor.exceptions.InvalidCredentialsException;
+import com.priceprocessor.exceptions.UserAlreadyExistsException;
 import com.priceprocessor.models.Role;
 import com.priceprocessor.models.User;
 import com.priceprocessor.repositories.UserRepository;
@@ -11,6 +13,8 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -22,22 +26,39 @@ public class AuthenticationService {
     private final AuthenticationManager authenticationManager;
 
     public AuthenticationResponse register(RegisterRequest request) {
+        validateUniqueEmail(request.email());
+
         var user = User.builder()
                 .email(request.email())
                 .password(passwordEncoder.encode(request.password()))
                 .role(Role.USER)
                 .build();
-
         repository.save(user);
+
         var jwtToken = jwtService.generateToken(user);
         return new AuthenticationResponse(jwtToken);
     }
 
+    private void validateUniqueEmail(String requestedEmail) {
+        Optional<User> existingUser = repository.findByEmail(requestedEmail);
+
+        if(existingUser.isPresent()) {
+            throw new UserAlreadyExistsException(requestedEmail);
+        }
+    }
+
     public AuthenticationResponse authenticate(AuthenticationRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password())
-        );
-        var user = repository.findByEmail(request.email()).orElseThrow();
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.email(), request.password())
+            );
+        } catch (org.springframework.security.core.AuthenticationException e) {
+            throw new InvalidCredentialsException();
+        }
+
+        var user = repository.findByEmail(request.email())
+                .orElseThrow(InvalidCredentialsException::new);
+
         var jwtToken = jwtService.generateToken(user);
         return new AuthenticationResponse(jwtToken);
     }

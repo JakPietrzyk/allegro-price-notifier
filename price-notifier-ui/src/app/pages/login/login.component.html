@@ -40,12 +40,6 @@
       </button>
     </form>
 
-    @if (errorMessage()) {
-      <div class="error-msg">
-        {{ errorMessage() }}
-      </div>
-    }
-
     <div class="register-hint">
       {{ texts.UI.NO_ACCOUNT }}
       <a routerLink="/register">{{ texts.UI.REGISTER_LINK }}</a>

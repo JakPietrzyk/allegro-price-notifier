@@ -3,7 +3,8 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../services/auth/auth.service';
-import {REGISTER_CONSTANTS} from '../../core/constants/register.constants';
+import { REGISTER_CONSTANTS } from '../../core/constants/register.constants';
+import {GlobalErrorService} from '../../services/error/global-error.service';
 
 @Component({
   selector: 'app-register',
@@ -15,6 +16,7 @@ import {REGISTER_CONSTANTS} from '../../core/constants/register.constants';
 export class RegisterComponent {
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly errorService = inject(GlobalErrorService);
 
   protected readonly texts = REGISTER_CONSTANTS;
 
@@ -23,18 +25,16 @@ export class RegisterComponent {
   email = signal<string>('');
   password = signal<string>('');
 
-  errorMessage = signal<string>('');
   loading = signal<boolean>(false);
 
   onSubmit() {
     if (this.loading()) return;
 
     if (!this.email() || !this.password()) {
-      this.errorMessage.set(this.texts.MESSAGES.ERRORS.INVALID_FORM);
+      this.errorService.showError(this.texts.MESSAGES.ERRORS.INVALID_FORM);
       return;
     }
 
-    this.errorMessage.set('');
     this.loading.set(true);
 
     const payload = {
@@ -49,9 +49,7 @@ export class RegisterComponent {
         this.loading.set(false);
         this.router.navigate(['/dashboard']);
       },
-      error: (err) => {
-        console.error(err);
-        this.errorMessage.set(this.texts.MESSAGES.ERRORS.GENERIC);
+      error: () => {
         this.loading.set(false);
       }
     });

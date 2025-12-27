@@ -48,10 +48,8 @@ class CronControllerTest {
         when(priceUpdateService.updateOutdatedPrices()).thenThrow(new RuntimeException("Database error"));
 
         // Act & Assert
-        try {
-            mockMvc.perform(post("/api/cron/update-prices"))
-                    .andExpect(status().isInternalServerError());
-        } catch (Exception e) {
-        }
+
+        mockMvc.perform(post("/api/cron/update-prices"))
+                .andExpect(status().isInternalServerError());
     }
 }

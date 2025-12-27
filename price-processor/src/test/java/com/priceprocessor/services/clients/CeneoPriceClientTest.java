@@ -1,23 +1,35 @@
 package com.priceprocessor.services.clients;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.priceprocessor.config.ScraperProperties;
 import com.priceprocessor.dtos.crawler.PriceResponse;
 import com.priceprocessor.dtos.crawler.ScraperSearchRequest;
 import com.priceprocessor.dtos.crawler.ScraperUrlRequest;
+import com.priceprocessor.dtos.errors.ScraperErrorCode;
+import com.priceprocessor.dtos.errors.ScraperErrorResponse;
+import com.priceprocessor.exceptions.PriceFetchException;
+import com.priceprocessor.exceptions.ProductNotFoundInStoreException;
+import com.priceprocessor.exceptions.crawler.InvalidStoreUrlException;
+import com.priceprocessor.exceptions.crawler.ScraperException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -29,6 +41,7 @@ class CeneoPriceClientTest {
     private RestTemplate restTemplate;
 
     private CeneoPriceClient ceneoPriceClient;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String BASE_URL = "http://scraper-api";
     private static final String SEARCH_PATH = "/find_price";
     private static final String DIRECT_PATH = "/scrape_direct_url";
@@ -43,7 +56,7 @@ class CeneoPriceClientTest {
         paths.setDirect(DIRECT_PATH);
         properties.setPaths(paths);
 
-        ceneoPriceClient = new CeneoPriceClient(restTemplate, properties);
+        ceneoPriceClient = new CeneoPriceClient(restTemplate, objectMapper, properties);
     }
 
     @Test
@@ -65,34 +78,108 @@ class CeneoPriceClientTest {
     }
 
     @Test
-    void shouldReturnEmpty_WhenSearchingByNameAndScraperThrowException() {
-        // Arrange
+    void shouldThrowException_WhenSearchingByNameAndConnectionFails() {
         String productName = "Iphone 15";
         String expectedUrl = BASE_URL + SEARCH_PATH;
 
         when(restTemplate.postForEntity(eq(expectedUrl), any(ScraperSearchRequest.class), eq(PriceResponse.class)))
-                .thenThrow(new RestClientException("Connection refused"));
+                .thenThrow(new ResourceAccessException("Connection refused"));
 
-        // Act
-        Optional<PriceResponse> result = ceneoPriceClient.checkPriceByName(productName);
-
-        // Assert
-        assertThat(result).isEmpty();
+        // Act & Assert
+        assertThatThrownBy(() -> ceneoPriceClient.checkPriceByName(productName))
+                .isInstanceOf(PriceFetchException.class)
+                .hasMessageContaining("network error");
     }
 
     @Test
-    void shouldReturnEmpty_WhenSearchingByNameAndResponseBodyIsNull() {
+    void shouldThrowProductNotFoundException_WhenScraperReturnsProductNotFoundCode() throws JsonProcessingException {
         // Arrange
+        String productName = "Unicorn";
+        String expectedUrl = BASE_URL + SEARCH_PATH;
+
+        // Tworzymy JSON błędu jaki zwraca Python
+        ScraperErrorResponse errorResponse = new ScraperErrorResponse(ScraperErrorCode.PRODUCT_NOT_FOUND, "Not found");
+        String jsonError = objectMapper.writeValueAsString(errorResponse);
+
+        HttpClientErrorException exception = HttpClientErrorException.create(
+                HttpStatus.NOT_FOUND,
+                "Not Found",
+                HttpHeaders.EMPTY,
+                jsonError.getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8
+        );
+
+        when(restTemplate.postForEntity(eq(expectedUrl), any(ScraperSearchRequest.class), eq(PriceResponse.class)))
+                .thenThrow(exception);
+
+        // Act & Assert
+        assertThatThrownBy(() -> ceneoPriceClient.checkPriceByName(productName))
+                .isInstanceOf(ProductNotFoundInStoreException.class)
+                .hasMessage("Could not find product in store for search term/url: Not found");
+    }
+
+    @Test
+    void shouldThrowInvalidUrlException_WhenScraperReturnsInvalidDomainCode() throws JsonProcessingException {
+        // Arrange
+        String productUrl = "http://bad-url.com";
+        String expectedUrl = BASE_URL + DIRECT_PATH;
+
+        ScraperErrorResponse errorResponse = new ScraperErrorResponse(ScraperErrorCode.INVALID_DOMAIN, "Invalid domain");
+        String jsonError = objectMapper.writeValueAsString(errorResponse);
+
+        HttpClientErrorException exception = HttpClientErrorException.create(
+                HttpStatus.BAD_REQUEST,
+                "Bad Request",
+                HttpHeaders.EMPTY,
+                jsonError.getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8
+        );
+
+        when(restTemplate.postForEntity(eq(expectedUrl), any(ScraperUrlRequest.class), eq(PriceResponse.class)))
+                .thenThrow(exception);
+
+        // Act & Assert
+        assertThatThrownBy(() -> ceneoPriceClient.checkPriceByUrl(productUrl))
+                .isInstanceOf(InvalidStoreUrlException.class)
+                .hasMessage("Invalid domain");
+    }
+
+    @Test
+    void shouldThrowScraperException_WhenScraperReturnsParsingError() throws JsonProcessingException {
+        // Arrange
+        String productUrl = "http://ceneo.pl/123";
+        String expectedUrl = BASE_URL + DIRECT_PATH;
+
+        ScraperErrorResponse errorResponse = new ScraperErrorResponse(ScraperErrorCode.PRICE_PARSING_ERROR, "Parsing error");
+        String jsonError = objectMapper.writeValueAsString(errorResponse);
+
+        HttpClientErrorException exception = HttpClientErrorException.create(
+                HttpStatus.UNPROCESSABLE_ENTITY,
+                "Unprocessable",
+                HttpHeaders.EMPTY,
+                jsonError.getBytes(StandardCharsets.UTF_8),
+                StandardCharsets.UTF_8
+        );
+
+        when(restTemplate.postForEntity(eq(expectedUrl), any(ScraperUrlRequest.class), eq(PriceResponse.class)))
+                .thenThrow(exception);
+
+        // Act & Assert
+        assertThatThrownBy(() -> ceneoPriceClient.checkPriceByUrl(productUrl))
+                .isInstanceOf(ScraperException.class)
+                .hasMessage("Invalid price found");
+    }
+
+    @Test
+    void shouldReturnEmpty_WhenResponseBodyIsNullButStatus200() {
         String productName = "Iphone 15";
         String expectedUrl = BASE_URL + SEARCH_PATH;
 
         when(restTemplate.postForEntity(eq(expectedUrl), any(ScraperSearchRequest.class), eq(PriceResponse.class)))
                 .thenReturn(ResponseEntity.ok(null));
 
-        // Act
         Optional<PriceResponse> result = ceneoPriceClient.checkPriceByName(productName);
 
-        // Assert
         assertThat(result).isEmpty();
     }
 
@@ -112,22 +199,6 @@ class CeneoPriceClientTest {
         // Assert
         assertThat(result).isPresent();
         assertThat(result).contains(mockResponse);
-    }
-
-    @Test
-    void shouldReturnEmpty_WhenSearchingByUrlAndScraperThrowsException() {
-        // Arrange
-        String productUrl = "http://ceneo.pl/123";
-        String expectedUrl = BASE_URL + DIRECT_PATH;
-
-        when(restTemplate.postForEntity(eq(expectedUrl), any(ScraperUrlRequest.class), eq(PriceResponse.class)))
-                .thenThrow(new RestClientException("Timeout"));
-
-        // Act
-        Optional<PriceResponse> result = ceneoPriceClient.checkPriceByUrl(productUrl);
-
-        // Assert
-        assertThat(result).isEmpty();
     }
 
     @Test

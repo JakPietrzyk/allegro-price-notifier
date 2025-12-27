@@ -1,31 +1,30 @@
 package com.priceprocessor.services.queue;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.spring.pubsub.core.PubSubTemplate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.priceprocessor.exceptions.NotificationServiceException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @Profile("cloud")
+@RequiredArgsConstructor
+@Slf4j
 public class GooglePubSubProducer implements NotificationProducer {
 
-    private static final Logger logger = LoggerFactory.getLogger(GooglePubSubProducer.class);
     private final PubSubTemplate pubSubTemplate;
     private final ObjectMapper objectMapper;
 
     @Value("${gcp.pubsub.topic-name}")
     private String topicName;
-
-    public GooglePubSubProducer(PubSubTemplate pubSubTemplate, ObjectMapper objectMapper) {
-        this.pubSubTemplate = pubSubTemplate;
-        this.objectMapper = objectMapper;
-    }
 
     @Override
     public void sendEmailNotification(String to, String subject, String body) {
@@ -37,11 +36,22 @@ public class GooglePubSubProducer implements NotificationProducer {
 
             String jsonString = objectMapper.writeValueAsString(payload);
 
-            pubSubTemplate.publish(topicName, jsonString);
-            logger.info("Email request sent to Google Pub/Sub: {}", to);
+            CompletableFuture<String> future = pubSubTemplate.publish(topicName, jsonString);
 
+            future.whenComplete((msgId, ex) -> {
+                if (ex != null) {
+                    log.error("Async error publishing to Pub/Sub for user: {}", to, ex);
+                } else {
+                    log.debug("Message published to Pub/Sub with ID: {}", msgId);
+                }
+            });
+
+            log.info("Email notification queued for: {}", to);
+
+        } catch (JsonProcessingException e) {
+            throw new NotificationServiceException("Failed to serialize notification payload for " + to, e);
         } catch (Exception e) {
-            logger.error("Error sending to Google Pub/Sub", e);
+            throw new NotificationServiceException("Failed to publish message to Pub/Sub topic " + topicName, e);
         }
     }
 }

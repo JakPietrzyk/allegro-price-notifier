@@ -3,6 +3,8 @@ package com.priceprocessor.services;
 import com.priceprocessor.dtos.auth.AuthenticationRequest;
 import com.priceprocessor.dtos.auth.AuthenticationResponse;
 import com.priceprocessor.dtos.auth.RegisterRequest;
+import com.priceprocessor.exceptions.InvalidCredentialsException;
+import com.priceprocessor.exceptions.UserAlreadyExistsException;
 import com.priceprocessor.models.Role;
 import com.priceprocessor.models.User;
 import com.priceprocessor.repositories.UserRepository;
@@ -17,7 +19,6 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.util.NoSuchElementException;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -69,6 +70,23 @@ class AuthenticationServiceTest {
     }
 
     @Test
+    void shouldThrowException_WhenRegisteringExistingUser() {
+        // Arrange
+        String email = "john@example.com";
+        RegisterRequest request = new RegisterRequest(email, "pass", "", "");
+
+
+        when(repository.findByEmail(email)).thenReturn(Optional.of(new User()));
+
+        // Act & Assert
+        assertThatThrownBy(() -> service.register(request))
+                .isInstanceOf(UserAlreadyExistsException.class)
+                .hasMessageContaining(email);
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
     void shouldAuthenticateUser_WhenCredentialsAreCorrect() {
         // Arrange
         String email = "john@example.com";
@@ -105,7 +123,7 @@ class AuthenticationServiceTest {
 
         // Act & Assert
         assertThatThrownBy(() -> service.authenticate(request))
-                .isInstanceOf(BadCredentialsException.class);
+                .isInstanceOf(InvalidCredentialsException.class);
 
         verify(jwtService, never()).generateToken(any());
         verify(repository, never()).findByEmail(any());
@@ -121,6 +139,6 @@ class AuthenticationServiceTest {
 
         // Act & Assert
         assertThatThrownBy(() -> service.authenticate(request))
-                .isInstanceOf(NoSuchElementException.class);
+                .isInstanceOf(InvalidCredentialsException.class);
     }
 }

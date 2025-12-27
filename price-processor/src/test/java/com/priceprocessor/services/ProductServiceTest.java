@@ -2,6 +2,8 @@ package com.priceprocessor.services;
 
 import com.priceprocessor.dtos.api.*;
 import com.priceprocessor.dtos.crawler.PriceResponse;
+import com.priceprocessor.exceptions.ProductNotFoundException;
+import com.priceprocessor.exceptions.ProductNotFoundInStoreException;
 import com.priceprocessor.models.PriceHistory;
 import com.priceprocessor.models.ProductObservation;
 import com.priceprocessor.repositories.ProductRepository;
@@ -87,8 +89,8 @@ class ProductServiceTest {
 
         // Act & Assert
         assertThatThrownBy(() -> productService.getProductDetails(productId))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Product not found or access denied");
+                .isInstanceOf(ProductNotFoundException.class) // ZMIANA: Konkretny wyjątek
+                .hasMessageContaining(String.valueOf(productId));
     }
 
     @Test
@@ -96,10 +98,15 @@ class ProductServiceTest {
         // Arrange
         String productName = "iPhone 15";
         ProductObservationByNameRequest request = new ProductObservationByNameRequest(productName);
-
         PriceResponse priceResponse = new PriceResponse("iPhone 15 Pro", new BigDecimal("5000"), "PLN", "http://ceneo.pl/123");
 
         when(priceClient.checkPriceByName(productName)).thenReturn(Optional.of(priceResponse));
+
+        when(productRepository.save(any(ProductObservation.class))).thenAnswer(invocation -> {
+            ProductObservation p = invocation.getArgument(0);
+            p.setId(1L);
+            return p;
+        });
 
         // Act
         ProductObservationResponse result = productService.startObservingProductByName(request);
@@ -125,8 +132,8 @@ class ProductServiceTest {
 
         // Act & Assert
         assertThatThrownBy(() -> productService.startObservingProductByName(request))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Price not found");
+                .isInstanceOf(ProductNotFoundInStoreException.class) // ZMIANA: Konkretny wyjątek
+                .hasMessageContaining(productName);
 
         verify(productRepository, never()).save(any());
     }
@@ -135,12 +142,16 @@ class ProductServiceTest {
     void shouldStartObservingProductByUrl_WhenPriceIsFound() {
         // Arrange
         String url = "http://ceneo.pl/abc";
-
         ProductObservationByUrlRequest request = new ProductObservationByUrlRequest(url);
-
         PriceResponse priceResponse = new PriceResponse("Laptop", new BigDecimal("3000"), "PLN", url);
 
         when(priceClient.checkPriceByUrl(url)).thenReturn(Optional.of(priceResponse));
+
+        when(productRepository.save(any(ProductObservation.class))).thenAnswer(invocation -> {
+            ProductObservation p = invocation.getArgument(0);
+            p.setId(1L);
+            return p;
+        });
 
         // Act
         productService.startObservingProductByUrl(request);
@@ -196,7 +207,7 @@ class ProductServiceTest {
 
         // Act & Assert
         assertThatThrownBy(() -> productService.deleteObservedProduct(productId))
-                .isInstanceOf(RuntimeException.class);
+                .isInstanceOf(ProductNotFoundException.class); // ZMIANA
 
         verify(productRepository, never()).delete(any());
     }

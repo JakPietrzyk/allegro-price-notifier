@@ -1,0 +1,14 @@
+package com.priceprocessor.dtos.errors;
+
+public enum ErrorCode {
+    AUTH_INVALID_CREDENTIALS,
+    AUTH_USER_ALREADY_EXISTS,
+
+    PRODUCT_NOT_FOUND,
+    PRODUCT_NOT_IN_STORE,
+
+    VALIDATION_FAILED,
+    INTERNAL_SERVER_ERROR,
+
+    USER_CREDENTIALS_INVALID,
+}

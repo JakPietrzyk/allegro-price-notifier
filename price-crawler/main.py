@@ -5,22 +5,34 @@ import requests
 from bs4 import BeautifulSoup
 import urllib.parse
 
+from scraper_error_code import ScraperErrorCode
+
 app = Flask(__name__)
 
 
-def get_soup(url):
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7'
-    }
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            return BeautifulSoup(response.content, 'html.parser')
-    except Exception as e:
-        print(f"Connection error: {e}")
-    return None
+@app.route('/find_price', methods=['POST'])
+def find_price_endpoint():
+    data = request.get_json()
+    if not data or 'productName' not in data:
+        return make_error_response(ScraperErrorCode.MISSING_PARAM, "Missing parameter 'productName'", 400)
 
+    product_name = data['productName']
+    product_url = find_best_product_link(product_name)
+
+    if not product_url:
+        return make_error_response(ScraperErrorCode.PRODUCT_NOT_FOUND, "Could not find item", 404)
+
+    title, price = extract_cheapest_offer(product_url)
+
+    result =  jsonify({
+        "found_product_name": title,
+        "price": price,
+        "currency": "PLN",
+        "ceneo_url": product_url
+    }), 200
+
+    print(result)
+    return result
 
 def find_best_product_link(product_name):
     encoded_name = urllib.parse.quote(product_name)
@@ -51,6 +63,44 @@ def find_best_product_link(product_name):
 
     return None
 
+def get_soup(url):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept-Language': 'pl-PL,pl;q=0.9,en-US;q=0.8,en;q=0.7'
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            return BeautifulSoup(response.content, 'html.parser')
+    except Exception as e:
+        print(f"Connection error: {e}")
+    return None
+
+@app.route('/scrape_direct_url', methods=['POST'])
+def scrape_direct_url_endpoint():
+    data = request.get_json()
+
+    if not data or 'url' not in data:
+        return make_error_response(ScraperErrorCode.MISSING_PARAM, "Missing parameter 'url'", 400)
+    url = data['url']
+
+    if "ceneo.pl" not in url:
+        return make_error_response(ScraperErrorCode.INVALID_DOMAIN, "Invalid link not from ceneo", 400)
+
+    title, price = extract_cheapest_offer(url)
+
+    if price == 0.0:
+        return make_error_response(ScraperErrorCode.PRICE_PARSING_ERROR, "Invalid price", 422)
+
+    result =  jsonify({
+        "found_product_name": title,
+        "price": price,
+        "currency": "PLN",
+        "ceneo_url": url
+    }), 200
+
+    print(result)
+    return result
 
 def extract_cheapest_offer(product_url):
     print(f"Scraping product page: {product_url}")
@@ -94,58 +144,13 @@ def extract_cheapest_offer(product_url):
 
     return product_title, 0.0
 
-
-@app.route('/find_price', methods=['POST'])
-def find_price_endpoint():
-    data = request.get_json()
-    if not data or 'productName' not in data:
-        return jsonify({"error": "Brak parametru 'productName'"}), 400
-
-    product_name = data['productName']
-    product_url = find_best_product_link(product_name)
-
-    if not product_url:
-        return jsonify({"error": "Nie znaleziono produktu"}), 404
-
-    title, price = extract_cheapest_offer(product_url)
-
-    result =  jsonify({
-        "found_product_name": title,
-        "price": price,
-        "currency": "PLN",
-        "ceneo_url": product_url
-    }), 200
-
-    print(result)
-    return result
+def make_error_response(error_enum: ScraperErrorCode, message: str, status_code: int):
+    return jsonify({
+        "errorCode": error_enum.value,
+        "message": message
+    }), status_code
 
 
-@app.route('/scrape_direct_url', methods=['POST'])
-def scrape_direct_url_endpoint():
-    data = request.get_json()
-
-    if not data or 'url' not in data:
-        return jsonify({"error": "Missing parameter 'url'"}), 400
-
-    url = data['url']
-
-    if "ceneo.pl" not in url:
-        return jsonify({"error": "Invalid Ceneo link"}), 400
-
-    title, price = extract_cheapest_offer(url)
-
-    if price == 0.0:
-        return jsonify({"error": "Could not get price from link"}), 404
-
-    result =  jsonify({
-        "found_product_name": title,
-        "price": price,
-        "currency": "PLN",
-        "ceneo_url": url
-    }), 200
-
-    print(result)
-    return result
 
 
 if __name__ == '__main__':

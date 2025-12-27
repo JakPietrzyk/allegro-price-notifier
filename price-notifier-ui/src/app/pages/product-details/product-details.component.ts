@@ -1,18 +1,18 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { CommonModule, DatePipe, DecimalPipe } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartOptions } from 'chart.js';
 import { ProductService } from '../../services/product/product.service';
 import {PRODUCT_DETAILS_CONSTANTS} from '../../core/constants/product-details.constants';
 import {ProductDetails} from '../../models/product-details.model';
-import {PriceHistory} from '../../models/price-history.model'; // Zakładam istnienie
+import {PriceHistory} from '../../models/price-history.model';
 
 @Component({
   selector: 'app-product-details',
   standalone: true,
   imports: [CommonModule, RouterLink, BaseChartDirective],
-  providers: [DatePipe], // DatePipe potrzebny w TS do formatowania etykiet wykresu
+  providers: [DatePipe],
   templateUrl: './product-details.component.html',
   styleUrl: './product-details.component.scss'
 })
@@ -23,11 +23,9 @@ export class ProductDetailsComponent implements OnInit {
 
   protected readonly texts = PRODUCT_DETAILS_CONSTANTS;
 
-  // Signals
   product = signal<ProductDetails | null>(null);
   loading = signal<boolean>(true);
 
-  // Computed Signal: Automatycznie oblicza najniższą cenę, gdy zmienia się product()
   lowestPrice = computed(() => {
     const p = this.product();
     if (!p || !p.priceHistory?.length) {
@@ -36,7 +34,6 @@ export class ProductDetailsComponent implements OnInit {
     return Math.min(...p.priceHistory.map(h => h.price));
   });
 
-  // Chart Config
   public lineChartData: ChartConfiguration<'line'>['data'] = {
     labels: [],
     datasets: [{
@@ -57,7 +54,7 @@ export class ProductDetailsComponent implements OnInit {
       tooltip: { mode: 'index', intersect: false }
     },
     scales: {
-      y: { beginAtZero: false } // Skalowanie dynamiczne (nie od zera), lepiej widać różnice cen
+      y: { beginAtZero: false }
     }
   };
 
@@ -71,22 +68,19 @@ export class ProductDetailsComponent implements OnInit {
   private loadProduct(id: string) {
     this.loading.set(true);
 
-    // Zakładam, że dodałeś metodę getById w serwisie (zamiast this.http.get)
     this.productService.getById(id).subscribe({
       next: (data: ProductDetails) => {
         this.product.set(data);
         this.updateChart(data.priceHistory);
         this.loading.set(false);
       },
-      error: (err) => {
-        console.error(err);
+      error: () => {
         this.loading.set(false);
       }
     });
   }
 
   private updateChart(history: PriceHistory[]) {
-    // Sortowanie chronologiczne
     const sorted = [...history].sort((a, b) =>
       new Date(a.checkedAt).getTime() - new Date(b.checkedAt).getTime()
     );
@@ -96,7 +90,6 @@ export class ProductDetailsComponent implements OnInit {
     );
     const prices = sorted.map(h => h.price);
 
-    // Aktualizacja obiektu danych wykresu (wymusza przerysowanie)
     this.lineChartData = {
       ...this.lineChartData,
       labels,

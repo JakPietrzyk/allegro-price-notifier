@@ -2,6 +2,7 @@ package com.priceprocessor.services.queue;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.priceprocessor.exceptions.NotificationServiceException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,7 +15,9 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,7 +49,8 @@ class KafkaNotificationProducerTest {
 
         when(objectMapper.writeValueAsString(any(Map.class))).thenReturn(expectedJson);
 
-        when(kafkaTemplate.send(anyString(), anyString())).thenReturn(new CompletableFuture<>());
+        when(kafkaTemplate.send(TOPIC_NAME, expectedJson))
+                .thenReturn(CompletableFuture.completedFuture(null));
 
         // Act
         producer.sendEmailNotification(to, subject, body);
@@ -57,7 +61,7 @@ class KafkaNotificationProducerTest {
     }
 
     @Test
-    void shouldNotSendToKafka_WhenSerializationFails() throws Exception {
+    void shouldThrowException_WhenSerializationFails() throws Exception {
         // Arrange
         String to = "user@example.com";
         String subject = "Test";
@@ -66,15 +70,17 @@ class KafkaNotificationProducerTest {
         when(objectMapper.writeValueAsString(any(Map.class)))
                 .thenThrow(new JsonProcessingException("Error mapping") {});
 
-        // Act
-        producer.sendEmailNotification(to, subject, body);
+        // Act & Assert
+        assertThatThrownBy(() -> producer.sendEmailNotification(to, subject, body))
+                .isInstanceOf(NotificationServiceException.class)
+                .hasMessageContaining("Failed to serialize");
 
-        // Assert
+        // Upewniamy się, że nie wysłano nic do Kafki
         verify(kafkaTemplate, never()).send(anyString(), anyString());
     }
 
     @Test
-    void shouldHandleException_WhenKafkaThrowsError() throws Exception {
+    void shouldThrowException_WhenKafkaThrowsError() throws Exception {
         // Arrange
         String to = "user@example.com";
         String validJson = "{}";
@@ -84,10 +90,11 @@ class KafkaNotificationProducerTest {
         when(kafkaTemplate.send(anyString(), anyString()))
                 .thenThrow(new RuntimeException("Kafka connection error"));
 
-        // Act
-        producer.sendEmailNotification(to, "Sub", "Body");
+        // Act & Assert
+        assertThatThrownBy(() -> producer.sendEmailNotification(to, "Sub", "Body"))
+                .isInstanceOf(NotificationServiceException.class)
+                .hasMessageContaining("Failed to send message to Kafka");
 
-        // Assert
         verify(kafkaTemplate).send(TOPIC_NAME, validJson);
     }
 }

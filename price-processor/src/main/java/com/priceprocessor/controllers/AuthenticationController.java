@@ -25,12 +25,7 @@ public class AuthenticationController {
     }
 
     @PostMapping("/authenticate")
-    public ResponseEntity<?> authenticate(@RequestBody AuthenticationRequest request) {
-        try {
-            return ResponseEntity.ok(service.authenticate(request));
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.status(403).body("Błąd logowania: " + e.getMessage());
-        }
+    public ResponseEntity<AuthenticationResponse> authenticate(@RequestBody AuthenticationRequest request) {
+        return ResponseEntity.ok(service.authenticate(request));
     }
 }

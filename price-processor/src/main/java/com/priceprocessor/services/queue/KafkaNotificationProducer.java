@@ -1,8 +1,10 @@
 package com.priceprocessor.services.queue;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.priceprocessor.exceptions.NotificationServiceException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -10,22 +12,19 @@ import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @Service
 @Profile("dev")
+@RequiredArgsConstructor
+@Slf4j
 public class KafkaNotificationProducer implements NotificationProducer {
 
-    private static final Logger logger = LoggerFactory.getLogger(KafkaNotificationProducer.class);
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
     @Value("${notification.topic.name:allegro-price-notifications}")
     private String topicName;
-
-    public KafkaNotificationProducer(KafkaTemplate<String, String> kafkaTemplate, ObjectMapper objectMapper) {
-        this.kafkaTemplate = kafkaTemplate;
-        this.objectMapper = objectMapper;
-    }
 
     @Override
     public void sendEmailNotification(String to, String subject, String body) {
@@ -37,11 +36,22 @@ public class KafkaNotificationProducer implements NotificationProducer {
 
             String jsonString = objectMapper.writeValueAsString(payload);
 
-            kafkaTemplate.send(topicName, jsonString);
-            logger.info("Email request sent to Kafka: {}", to);
+            CompletableFuture<?> future = kafkaTemplate.send(topicName, jsonString);
 
+            future.whenComplete((result, ex) -> {
+                if (ex != null) {
+                    log.error("Async error sending to Kafka for user: {}", to, ex);
+                } else {
+                    log.debug("Message sent to Kafka topic: {}", topicName);
+                }
+            });
+
+            log.info("Email request queued in Kafka for: {}", to);
+
+        } catch (JsonProcessingException e) {
+            throw new NotificationServiceException("Failed to serialize notification payload for " + to, e);
         } catch (Exception e) {
-            logger.error("Error sending to Kafka", e);
+            throw new NotificationServiceException("Failed to send message to Kafka topic " + topicName, e);
         }
     }
 }

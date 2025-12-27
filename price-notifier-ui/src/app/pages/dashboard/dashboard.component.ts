@@ -43,9 +43,7 @@ export class DashboardComponent implements OnInit {
         this.products.set(data);
         this.loading.set(false);
       },
-      error: (err) => {
-        console.error(err);
-        alert(this.texts.MESSAGES.ERRORS.LOAD_FAILED);
+      error: () => {
         this.loading.set(false);
       }
     });
@@ -79,9 +77,7 @@ export class DashboardComponent implements OnInit {
         resetInput();
         this.loadProducts();
       },
-      error: (err: unknown) => {
-        console.error(err);
-        alert(this.texts.MESSAGES.ERRORS.ADD_FAILED);
+      error: () => {
         this.loading.set(false);
       }
     });
@@ -102,9 +98,7 @@ export class DashboardComponent implements OnInit {
         this.products.update(current => current.filter(p => p.id !== id));
         this.loading.set(false);
       },
-      error: (err) => {
-        console.error(err);
-        alert(this.texts.MESSAGES.ERRORS.DELETE_FAILED);
+      error: () => {
         this.loading.set(false);
       }
     });

@@ -4,7 +4,6 @@ import { provideRouter } from '@angular/router';
 import { AuthService } from '../../services/auth/auth.service';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { of, throwError } from 'rxjs';
-import {REGISTER_CONSTANTS} from '../../core/constants/register.constants';
 
 describe('RegisterComponent', () => {
   let component: RegisterComponent;
@@ -52,7 +51,6 @@ describe('RegisterComponent', () => {
     component.onSubmit();
 
     // Assert
-    expect(component.errorMessage()).toBe(REGISTER_CONSTANTS.MESSAGES.ERRORS.INVALID_FORM);
     expect(component.loading()).toBe(false);
     expect(authServiceMock.register).not.toHaveBeenCalled();
   });
@@ -93,6 +91,5 @@ describe('RegisterComponent', () => {
 
     // Assert
     expect(component.loading()).toBe(false);
-    expect(component.errorMessage()).toBe(REGISTER_CONSTANTS.MESSAGES.ERRORS.GENERIC);
   });
 });

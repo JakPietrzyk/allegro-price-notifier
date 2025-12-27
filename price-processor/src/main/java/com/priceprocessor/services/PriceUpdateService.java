@@ -1,6 +1,8 @@
 package com.priceprocessor.services;
 
 import com.priceprocessor.dtos.crawler.PriceResponse;
+import com.priceprocessor.exceptions.NotificationServiceException;
+import com.priceprocessor.exceptions.PriceFetchException;
 import com.priceprocessor.models.ProductObservation;
 import com.priceprocessor.repositories.ProductRepository;
 import com.priceprocessor.services.clients.PriceClient;
@@ -32,47 +34,66 @@ public class PriceUpdateService {
         List<ProductObservation> productsToUpdate = productRepository.findProductsToUpdate(PageRequest.of(0, BATCH_SIZE));
 
         if (productsToUpdate.isEmpty()) {
-            log.info("No products to update.");
+            log.info("No products to update");
             return 0;
         }
 
         log.info("Starting batch update for {} products", productsToUpdate.size());
 
         for (ProductObservation product : productsToUpdate) {
-            updateSingleProduct(product);
+            processProductUpdate(product);
         }
 
         return productsToUpdate.size();
     }
 
-    private void updateSingleProduct(ProductObservation product) {
+    private void processProductUpdate(ProductObservation product) {
         try {
-            log.info("Checking price for: {}", product.getProductName());
+            log.debug("Checking price for: {}", product.getProductName());
 
-            Optional<PriceResponse> response = priceClient.checkPriceByUrl(product.getProductUrl());
+            Optional<PriceResponse> responseOpt = priceClient.checkPriceByUrl(product.getProductUrl());
 
-            if (response.isPresent()) {
-                BigDecimal newPrice = response.get().price();
-                BigDecimal oldPrice = product.getCurrentPrice();
-
-                product.addPriceHistory(newPrice, LocalDateTime.now());
-                product.setProductName(response.get().foundProductName());
-                if (newPrice.compareTo(oldPrice) < 0) {
-                    notificationProducer.sendEmailNotification(
-                            product.getUserEmail(),
-                            "Price Drop Alert!",
-                            "Price for " + product.getProductName() + " dropped from " + oldPrice + " to " + newPrice
-                    );
-                }
+            if (responseOpt.isPresent()) {
+                updateProductData(product, responseOpt.get());
             } else {
-                log.warn("Could not fetch price for {}", product.getProductUrl());
+                log.info("Product {} not found", product.getProductUrl());
             }
 
+        } catch (PriceFetchException e) {
+            log.warn("Failed to update product ID: {}. Reason: {}", product.getId(), e.getMessage());
         } catch (Exception e) {
-            log.error("Error updating product id: {}", product.getId(), e);
+            log.error("Critical error updating product ID: {}", product.getId(), e);
         } finally {
             product.setLastCheckedAt(LocalDateTime.now());
             productRepository.save(product);
+        }
+    }
+
+    private void updateProductData(ProductObservation product, PriceResponse response) {
+        BigDecimal newPrice = response.price();
+        BigDecimal oldPrice = product.getCurrentPrice();
+
+        product.addPriceHistory(newPrice, LocalDateTime.now());
+        product.setProductName(response.foundProductName());
+
+        if (isPriceLower(newPrice, oldPrice)) {
+            handlePriceDrop(product, oldPrice, newPrice);
+        }
+    }
+
+    private boolean isPriceLower(BigDecimal newPrice, BigDecimal oldPrice) {
+        return newPrice.compareTo(oldPrice) < 0;
+    }
+
+    private void handlePriceDrop(ProductObservation product, BigDecimal oldPrice, BigDecimal newPrice) {
+        try {
+            notificationProducer.sendEmailNotification(
+                    product.getUserEmail(),
+                    "Price Drop Alert!",
+                    "Price for " + product.getProductName() + " dropped from " + oldPrice + " to " + newPrice
+            );
+        } catch (Exception e) {
+            log.error("Price updated, but notification failed for user: {}", product.getUserEmail(), new NotificationServiceException("Email sending failed", e));
         }
     }
 }

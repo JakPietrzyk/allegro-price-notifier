@@ -75,6 +75,5 @@ describe('LoginComponent', () => {
 
     // Assert
     expect(component.loading()).toBe(false);
-    expect(component.errorMessage()).toBe(LOGIN_CONSTANTS.MESSAGES.ERRORS.INVALID_CREDENTIALS);
   });
 });
