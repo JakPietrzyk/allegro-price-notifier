@@ -7,6 +7,7 @@ import com.priceprocessor.exceptions.ProductNotFoundInStoreException;
 import com.priceprocessor.models.ProductObservation;
 import com.priceprocessor.repositories.ProductRepository;
 import com.priceprocessor.services.clients.PriceClient;
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,6 +31,7 @@ public class ProductService {
     }
 
     @Transactional(readOnly = true)
+    @Timed(value = "product.details.fetch", description = "Time taken to fetch product details")
     public ProductDetailsResponse getProductDetails(Long id) {
         String currentUser = getCurrentUserEmail();
 

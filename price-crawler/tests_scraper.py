@@ -102,6 +102,16 @@ class TestScraperUtils(unittest.TestCase):
         title, price = extract_cheapest_offer("http://example.com/p1")
         self.assertEqual(price, 0.0)
 
+    @patch('main.get_soup')
+    def test_extract_cheapest_offer_returns_two_values_on_error(self, mock_get_soup):
+        mock_get_soup.return_value = None
+
+        result = extract_cheapest_offer("http://example.com")
+
+        self.assertEqual(len(result), 2)
+        self.assertIsNone(result[0])
+        self.assertEqual(result[1], 0.0)
+
 
 class TestFlaskEndpoints(unittest.TestCase):
     def setUp(self):
@@ -158,6 +168,27 @@ class TestFlaskEndpoints(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(data['errorCode'], ScraperErrorCode.INVALID_DOMAIN.value)
+
+    def test_scrape_direct_url_typosquatting_domain(self):
+        payload = {"url": "https://sceneo.pl/555"}
+
+        response = self.app.post('/scrape_direct_url', json=payload)
+        data = response.get_json()
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(data['errorCode'], ScraperErrorCode.INVALID_DOMAIN.value)
+
+    @patch('main.extract_cheapest_offer')
+    def test_scrape_direct_url_adds_missing_scheme(self, mock_extract):
+        mock_extract.return_value = ("Fixed Product", 200.0)
+        payload = {"url": "ceneo.pl/12345"}
+
+        response = self.app.post('/scrape_direct_url', json=payload)
+        data = response.get_json()
+
+        self.assertEqual(response.status_code, 200)
+        mock_extract.assert_called_with("https://ceneo.pl/12345")
+        self.assertEqual(data['ceneo_url'], "https://ceneo.pl/12345")
 
     @patch('main.extract_cheapest_offer')
     def test_scrape_direct_url_price_parsing_error(self, mock_extract):

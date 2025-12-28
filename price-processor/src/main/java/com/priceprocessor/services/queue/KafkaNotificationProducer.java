@@ -3,6 +3,7 @@ package com.priceprocessor.services.queue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.priceprocessor.exceptions.NotificationServiceException;
+import com.priceprocessor.services.MetricsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,7 @@ public class KafkaNotificationProducer implements NotificationProducer {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
+    private final MetricsService metricsService;
 
     @Value("${notification.topic.name:allegro-price-notifications}")
     private String topicName;
@@ -47,10 +49,13 @@ public class KafkaNotificationProducer implements NotificationProducer {
             });
 
             log.info("Email request queued in Kafka for: {}", to);
+            metricsService.incrementMailQueueSuccess();
 
         } catch (JsonProcessingException e) {
+            metricsService.incrementMailQueueFailure(e.getClass().getSimpleName());
             throw new NotificationServiceException("Failed to serialize notification payload for " + to, e);
         } catch (Exception e) {
+            metricsService.incrementMailQueueFailure(e.getClass().getSimpleName());
             throw new NotificationServiceException("Failed to send message to Kafka topic " + topicName, e);
         }
     }

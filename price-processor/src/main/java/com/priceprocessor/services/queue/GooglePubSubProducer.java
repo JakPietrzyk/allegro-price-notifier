@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.spring.pubsub.core.PubSubTemplate;
 import com.priceprocessor.exceptions.NotificationServiceException;
+import com.priceprocessor.services.MetricsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,7 @@ public class GooglePubSubProducer implements NotificationProducer {
 
     private final PubSubTemplate pubSubTemplate;
     private final ObjectMapper objectMapper;
+    private final MetricsService metricsService;
 
     @Value("${gcp.pubsub.topic-name}")
     private String topicName;
@@ -47,10 +49,12 @@ public class GooglePubSubProducer implements NotificationProducer {
             });
 
             log.info("Email notification queued for: {}", to);
-
+            metricsService.incrementMailQueueSuccess();
         } catch (JsonProcessingException e) {
+            metricsService.incrementMailQueueFailure(e.getClass().getSimpleName());
             throw new NotificationServiceException("Failed to serialize notification payload for " + to, e);
         } catch (Exception e) {
+            metricsService.incrementMailQueueFailure(e.getClass().getSimpleName());
             throw new NotificationServiceException("Failed to publish message to Pub/Sub topic " + topicName, e);
         }
     }

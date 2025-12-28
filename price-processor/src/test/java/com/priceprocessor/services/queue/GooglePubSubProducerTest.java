@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.spring.pubsub.core.PubSubTemplate;
 import com.priceprocessor.exceptions.NotificationServiceException;
+import com.priceprocessor.services.MetricsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,6 +28,8 @@ class GooglePubSubProducerTest {
 
     @Mock
     private ObjectMapper objectMapper;
+    @Mock
+    private MetricsService metricsService;
 
     @InjectMocks
     private GooglePubSubProducer producer;

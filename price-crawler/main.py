@@ -84,7 +84,18 @@ def scrape_direct_url_endpoint():
         return make_error_response(ScraperErrorCode.MISSING_PARAM, "Missing parameter 'url'", 400)
     url = data['url']
 
-    if "ceneo.pl" not in url:
+    parsed_url = urllib.parse.urlparse(url)
+    domain = parsed_url.hostname
+
+    if not domain:
+        temp_url = "https://" + url
+        parsed_url = urllib.parse.urlparse(temp_url)
+        domain = parsed_url.hostname
+        url = temp_url
+
+    is_valid_domain = domain and (domain == "ceneo.pl" or domain.endswith(".ceneo.pl"))
+
+    if not is_valid_domain:
         return make_error_response(ScraperErrorCode.INVALID_DOMAIN, "Invalid link not from ceneo", 400)
 
     title, price = extract_cheapest_offer(url)
@@ -106,10 +117,10 @@ def extract_cheapest_offer(product_url):
     print(f"Scraping product page: {product_url}")
     soup = get_soup(product_url)
     if not soup:
-        return None, None, None
+        return None, 0.0
 
     title_tag = soup.find("h1", class_="product-top__product-info__name")
-    product_title = title_tag.get_text().strip() if title_tag else "Nieznany produkt"
+    product_title = title_tag.get_text().strip() if title_tag else "Unknown product"
 
     offers = soup.find_all("div", class_="product-offer__container")
 

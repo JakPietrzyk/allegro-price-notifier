@@ -11,6 +11,7 @@ import com.priceprocessor.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +25,7 @@ public class AuthenticationService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final MetricsService metricsService;
 
     public AuthenticationResponse register(RegisterRequest request) {
         validateUniqueEmail(request.email());
@@ -35,6 +37,7 @@ public class AuthenticationService {
                 .build();
         repository.save(user);
 
+        metricsService.incrementRegisterSuccess();
         var jwtToken = jwtService.generateToken(user);
         return new AuthenticationResponse(jwtToken);
     }
@@ -43,6 +46,7 @@ public class AuthenticationService {
         Optional<User> existingUser = repository.findByEmail(requestedEmail);
 
         if(existingUser.isPresent()) {
+            metricsService.incrementRegisterFailure(UserAlreadyExistsException.class.getSimpleName());
             throw new UserAlreadyExistsException(requestedEmail);
         }
     }
@@ -52,14 +56,16 @@ public class AuthenticationService {
             authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(request.email(), request.password())
             );
-        } catch (org.springframework.security.core.AuthenticationException e) {
+        } catch (AuthenticationException e) {
+            metricsService.incrementLoginFailure(AuthenticationException.class.getSimpleName());
             throw new InvalidCredentialsException();
         }
 
         var user = repository.findByEmail(request.email())
                 .orElseThrow(InvalidCredentialsException::new);
-
         var jwtToken = jwtService.generateToken(user);
+
+        metricsService.incrementLoginSuccess();
         return new AuthenticationResponse(jwtToken);
     }
 }

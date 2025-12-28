@@ -3,6 +3,7 @@ package com.priceprocessor.services.queue;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.priceprocessor.exceptions.NotificationServiceException;
+import com.priceprocessor.services.MetricsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +29,8 @@ class KafkaNotificationProducerTest {
 
     @Mock
     private ObjectMapper objectMapper;
+    @Mock
+    private MetricsService metricsService;
 
     @InjectMocks
     private KafkaNotificationProducer producer;

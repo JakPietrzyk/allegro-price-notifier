@@ -33,6 +33,8 @@ class PriceUpdateServiceTest {
     private PriceClient priceClient;
     @Mock
     private NotificationProducer notificationProducer;
+    @Mock
+    private MetricsService metricsService;
 
     @InjectMocks
     private PriceUpdateService priceUpdateService;

@@ -26,6 +26,7 @@ public class PriceUpdateService {
     private final ProductRepository productRepository;
     private final PriceClient priceClient;
     private final NotificationProducer notificationProducer;
+    private final MetricsService metricsService;
 
     private static final int BATCH_SIZE = 5;
 
@@ -54,14 +55,18 @@ public class PriceUpdateService {
             Optional<PriceResponse> responseOpt = priceClient.checkPriceByUrl(product.getProductUrl());
 
             if (responseOpt.isPresent()) {
+                metricsService.incrementProductPriceUpdateSuccess();
                 updateProductData(product, responseOpt.get());
             } else {
                 log.info("Product {} not found", product.getProductUrl());
+                throw new PriceFetchException("Product not found");
             }
 
         } catch (PriceFetchException e) {
-            log.warn("Failed to update product ID: {}. Reason: {}", product.getId(), e.getMessage());
+            metricsService.incrementLoginFailure(e.getClass().getSimpleName());
+            log.error("Failed to update product ID: {}. Reason: {}", product.getId(), e.getMessage());
         } catch (Exception e) {
+            metricsService.incrementLoginFailure(e.getClass().getSimpleName());
             log.error("Critical error updating product ID: {}", product.getId(), e);
         } finally {
             product.setLastCheckedAt(LocalDateTime.now());

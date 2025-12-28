@@ -12,6 +12,7 @@ import com.priceprocessor.exceptions.PriceFetchException;
 import com.priceprocessor.exceptions.ProductNotFoundInStoreException;
 import com.priceprocessor.exceptions.crawler.InvalidStoreUrlException;
 import com.priceprocessor.exceptions.crawler.ScraperException;
+import com.priceprocessor.services.MetricsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,6 +41,8 @@ class CeneoPriceClientTest {
 
     @Mock
     private RestTemplate restTemplate;
+    @Mock
+    private MetricsService metricsService;
 
     private CeneoPriceClient ceneoPriceClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -56,7 +60,7 @@ class CeneoPriceClientTest {
         paths.setDirect(DIRECT_PATH);
         properties.setPaths(paths);
 
-        ceneoPriceClient = new CeneoPriceClient(restTemplate, objectMapper, properties);
+        ceneoPriceClient = new CeneoPriceClient(restTemplate, objectMapper, properties, metricsService);
     }
 
     @Test
@@ -92,12 +96,11 @@ class CeneoPriceClientTest {
     }
 
     @Test
-    void shouldThrowProductNotFoundException_WhenScraperReturnsProductNotFoundCode() throws JsonProcessingException {
+    void shouldThrowProductNotFoundException_AndIncrementMetric_WhenScraperReturnsProductNotFoundCode() throws JsonProcessingException {
         // Arrange
         String productName = "Unicorn";
         String expectedUrl = BASE_URL + SEARCH_PATH;
 
-        // Tworzymy JSON błędu jaki zwraca Python
         ScraperErrorResponse errorResponse = new ScraperErrorResponse(ScraperErrorCode.PRODUCT_NOT_FOUND, "Not found");
         String jsonError = objectMapper.writeValueAsString(errorResponse);
 
@@ -112,14 +115,16 @@ class CeneoPriceClientTest {
         when(restTemplate.postForEntity(eq(expectedUrl), any(ScraperSearchRequest.class), eq(PriceResponse.class)))
                 .thenThrow(exception);
 
-        // Act & Assert
+        // Act
         assertThatThrownBy(() -> ceneoPriceClient.checkPriceByName(productName))
                 .isInstanceOf(ProductNotFoundInStoreException.class)
                 .hasMessage("Could not find product in store for search term/url: Not found");
+
+        verify(metricsService).incrementScraperError(ScraperErrorCode.PRODUCT_NOT_FOUND.name());
     }
 
     @Test
-    void shouldThrowInvalidUrlException_WhenScraperReturnsInvalidDomainCode() throws JsonProcessingException {
+    void shouldThrowInvalidUrlException_AndIncrementMetric_WhenScraperReturnsInvalidDomainCode() throws JsonProcessingException {
         // Arrange
         String productUrl = "http://bad-url.com";
         String expectedUrl = BASE_URL + DIRECT_PATH;
@@ -142,10 +147,12 @@ class CeneoPriceClientTest {
         assertThatThrownBy(() -> ceneoPriceClient.checkPriceByUrl(productUrl))
                 .isInstanceOf(InvalidStoreUrlException.class)
                 .hasMessage("Invalid domain");
+
+        verify(metricsService).incrementScraperError(ScraperErrorCode.INVALID_DOMAIN.name());
     }
 
     @Test
-    void shouldThrowScraperException_WhenScraperReturnsParsingError() throws JsonProcessingException {
+    void shouldThrowScraperException_AndIncrementMetric_WhenScraperReturnsParsingError() throws JsonProcessingException {
         // Arrange
         String productUrl = "http://ceneo.pl/123";
         String expectedUrl = BASE_URL + DIRECT_PATH;
@@ -168,6 +175,8 @@ class CeneoPriceClientTest {
         assertThatThrownBy(() -> ceneoPriceClient.checkPriceByUrl(productUrl))
                 .isInstanceOf(ScraperException.class)
                 .hasMessage("Invalid price found");
+
+        verify(metricsService).incrementScraperError(ScraperErrorCode.PRICE_PARSING_ERROR.name());
     }
 
     @Test
