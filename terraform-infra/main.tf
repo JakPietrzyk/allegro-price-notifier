@@ -31,6 +31,12 @@ variable "db_password" {
   sensitive   = true
 }
 
+variable "cron_schedule" {
+  description = "Cron schedule for price updates (Unix-cron format)"
+  type        = string
+  default     = "*/30 * * * *"
+}
+
 resource "google_project_service" "run_api" {
   service = "run.googleapis.com"
   disable_on_destroy = false
@@ -53,6 +59,11 @@ resource "google_project_service" "pubsub_api" {
 
 resource "google_project_service" "cloudfunctions_api" {
   service = "cloudfunctions.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_project_service" "scheduler_api" {
+  service            = "cloudscheduler.googleapis.com"
   disable_on_destroy = false
 }
 
@@ -85,10 +96,6 @@ resource "google_sql_database_instance" "instance" {
     tier = "db-f1-micro"
     ip_configuration {
       ipv4_enabled = true
-      authorized_networks {
-        name  = "all"
-        value = "0.0.0.0/0"
-      }
     }
   }
   depends_on = [google_project_service.sqladmin_api]
@@ -111,6 +118,29 @@ resource "google_pubsub_topic" "email_topic" {
 }
 
 # --- Cloud Run: BACKEND ---
+resource "google_service_account" "backend_sa" {
+  account_id   = "backend-sa"
+  display_name = "Backend Service Account"
+}
+
+resource "google_project_iam_member" "sql_client" {
+  project = var.project_id
+  role    = "roles/cloudsql.client"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
+resource "google_project_iam_member" "monitoring_editor" {
+  project = var.project_id
+  role    = "roles/monitoring.editor"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
+resource "google_project_iam_member" "pubsub_publisher" {
+  project = var.project_id
+  role    = "roles/pubsub.publisher"
+  member  = "serviceAccount:${google_service_account.backend_sa.email}"
+}
+
 resource "google_cloud_run_v2_service" "backend" {
   name     = "price-processor-backend"
   location = var.region
@@ -118,12 +148,26 @@ resource "google_cloud_run_v2_service" "backend" {
   ingress = "INGRESS_TRAFFIC_ALL"
 
   template {
+    service_account = google_service_account.backend_sa.email
+
+    volumes {
+      name = "cloudsql"
+      cloud_sql_instance {
+        instances = [google_sql_database_instance.instance.connection_name]
+      }
+    }
+
     containers {
       image = "us-docker.pkg.dev/cloudrun/container/hello"
 
+      volume_mounts {
+        name       = "cloudsql"
+        mount_path = "/cloudsql"
+      }
+
       env {
         name  = "DB_URL"
-        value = "jdbc:mysql://${google_sql_database_instance.instance.public_ip_address}:3306/price_processor_db?allowPublicKeyRetrieval=true&useSSL=false"
+        value = "jdbc:mysql:///${google_sql_database.database.name}?cloudSqlInstance=${google_sql_database_instance.instance.connection_name}&socketFactory=com.google.cloud.sql.mysql.SocketFactory&useSSL=false"
       }
       env {
         name  = "DB_USERNAME"
@@ -185,6 +229,115 @@ resource "google_cloud_run_service_iam_member" "frontend_public_access" {
   member   = "allUsers"
 }
 
+# --- Scheduler ---
+resource "google_service_account" "scheduler_sa" {
+  account_id   = "scheduler-sa"
+  display_name = "Cloud Scheduler Service Account"
+}
+
+resource "google_cloud_run_service_iam_member" "scheduler_invoker" {
+  service  = google_cloud_run_v2_service.backend.name
+  location = google_cloud_run_v2_service.backend.location
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${google_service_account.scheduler_sa.email}"
+}
+
+resource "google_cloud_scheduler_job" "price_update_job" {
+  name             = "price-update-cron"
+  description      = "Triggers price update"
+  schedule         = var.cron_schedule
+  time_zone        = "Europe/Warsaw"
+  attempt_deadline = "320s"
+  region           = var.region
+
+  retry_config {
+    retry_count = 1
+  }
+
+  http_target {
+    http_method = "POST"
+    uri         = "${google_cloud_run_v2_service.backend.uri}/api/cron/update-prices"
+
+    oidc_token {
+      service_account_email = google_service_account.scheduler_sa.email
+    }
+  }
+
+  depends_on = [google_project_service.scheduler_api, google_cloud_run_v2_service.backend]
+}
+
+# --- Mail Sender ---
+variable "smtp_user" { type = string }
+variable "smtp_pass" { type = string }
+variable "smtp_sender" { type = string }
+
+resource "google_project_service" "eventarc_api" {
+  service            = "eventarc.googleapis.com"
+  disable_on_destroy = false
+}
+
+resource "google_storage_bucket" "function_bucket" {
+  name                        = "${var.project_id}-gcf-source"
+  location                    = var.region
+  uniform_bucket_level_access = true
+}
+
+data "archive_file" "email_sender_zip" {
+  type        = "zip"
+  source_dir  = "../email-sender"
+  output_path = "/tmp/email-sender.zip"
+}
+
+resource "google_storage_bucket_object" "function_source" {
+  name   = "email-sender-${data.archive_file.email_sender_zip.output_md5}.zip"
+  bucket = google_storage_bucket.function_bucket.name
+  source = data.archive_file.email_sender_zip.output_path
+}
+
+resource "google_cloudfunctions2_function" "email_sender" {
+  name        = "email-sender-func"
+  location    = var.region
+  description = "Wysyła maile z Pub/Sub"
+
+  build_config {
+    runtime     = "python310"
+    entry_point = "send_email_pubsub"
+    source {
+      storage_source {
+        bucket = google_storage_bucket.function_bucket.name
+        object = google_storage_bucket_object.function_source.name
+      }
+    }
+  }
+
+  service_config {
+    max_instance_count = 1
+    available_memory   = "256M"
+
+    environment_variables = {
+      SMTP_USER   = var.smtp_user
+      SMTP_PASS   = var.smtp_pass
+      SMTP_SENDER = var.smtp_sender
+    }
+  }
+
+  event_trigger {
+    trigger_region = var.region
+    event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
+    pubsub_topic   = google_pubsub_topic.email_topic.id
+    retry_policy   = "RETRY_POLICY_RETRY"
+    service_account_email = google_service_account.backend_sa.email # Używamy istniejącego SA lub utwórz nowe
+  }
+
+  depends_on = [google_project_service.eventarc_api]
+}
+
+resource "google_cloud_run_service_iam_member" "invoker" {
+  location = google_cloudfunctions2_function.email_sender.location
+  service  = google_cloudfunctions2_function.email_sender.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
+}
 
 # --- Outputs ---
 output "db_connection_name" {

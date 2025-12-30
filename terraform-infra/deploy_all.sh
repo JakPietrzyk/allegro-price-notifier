@@ -19,6 +19,7 @@ SCRAPER_SERVICE="scraper-service"
 BACKEND_DIR="../price-processor"
 FRONTEND_DIR="../price-notifier-ui"
 SCRAPER_DIR="../price-crawler"
+TOPIC_NAME="email-notifications"
 DB_USER="root"
 
 echo "--- 1. Scraper ---"
@@ -33,25 +34,7 @@ else
     echo "Scraper working: $SCRAPER_URL"
 fi
 
-echo "--- 1.5. Cloud Function for mail"
-FUNCTION_NAME="email-sender-func"
-TOPIC_NAME="email-notifications"
-EMAIL_DIR="../email-sender"
-
-gcloud pubsub topics create $TOPIC_NAME 2>/dev/null || echo "Topic already exists"
-
-gcloud functions deploy $FUNCTION_NAME \
-    --gen2 \
-    --runtime=python310 \
-    --region=$REGION \
-    --source=$EMAIL_DIR \
-    --entry-point=send_email_pubsub \
-    --trigger-topic=$TOPIC_NAME \
-    --set-env-vars SMTP_USER=$SMTP_USER,SMTP_PASS=$SMTP_PASS,SMTP_SENDER=$SMTP_SENDER \
-    --allow-unauthenticated
-
-
-echo "--- 2. Java Backendu ---"
+echo "--- 2. Java Backend ---"
 
 gcloud builds submit --tag $REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$BACKEND_SERVICE $BACKEND_DIR
 
@@ -60,14 +43,16 @@ gcloud run deploy $BACKEND_SERVICE \
   --region $REGION \
   --allow-unauthenticated \
   --timeout=120s \
+  --no-cpu-throttling \
+  --set-env-vars SPRING_PROFILES_ACTIVE=cloud \
+  --set-env-vars MANAGEMENT_STACKDRIVER_METRICS_EXPORT_PROJECT_ID="$PROJECT_ID" \
   --set-env-vars SPRING_CLOUD_GCP_SQL_ENABLED=true \
   --set-env-vars SPRING_CLOUD_GCP_SQL_DATABASE_NAME="$DB_NAME" \
   --set-env-vars SPRING_CLOUD_GCP_SQL_INSTANCE_CONNECTION_NAME="$DB_INSTANCE_CONNECTION_NAME" \
   --set-env-vars SPRING_DATASOURCE_USERNAME="$DB_USER" \
   --set-env-vars SPRING_DATASOURCE_PASSWORD="$DB_PASS" \
   --set-env-vars SERVER_PORT="8080" \
-  --set-env-vars SCRAPER_URL_SEARCH="$SCRAPER_URL/find_price" \
-  --set-env-vars SCRAPER_URL_DIRECT="$SCRAPER_URL/scrape_direct_url" \
+  --set-env-vars SCRAPER_API_BASE_URL="$SCRAPER_URL" \
   --set-env-vars GCP_PUBSUB_TOPIC_NAME="projects/$PROJECT_ID/topics/$TOPIC_NAME" \
 
 BACKEND_URL=$(gcloud run services describe $BACKEND_SERVICE --region $REGION --format 'value(status.url)')

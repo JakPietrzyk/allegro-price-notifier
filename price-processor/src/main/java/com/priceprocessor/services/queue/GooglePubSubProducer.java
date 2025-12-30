@@ -44,7 +44,7 @@ public class GooglePubSubProducer implements NotificationProducer {
                 if (ex != null) {
                     log.error("Async error publishing to Pub/Sub for user: {}", to, ex);
                 } else {
-                    log.debug("Message published to Pub/Sub with ID: {}", msgId);
+                    log.info("Message published to Pub/Sub with ID: {}", msgId);
                 }
             });
 

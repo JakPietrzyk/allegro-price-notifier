@@ -84,6 +84,7 @@ public class PriceUpdateService {
         if (isPriceLower(newPrice, oldPrice)) {
             handlePriceDrop(product, oldPrice, newPrice);
         }
+        log.info("Updated price for: {}", product.getProductName());
     }
 
     private boolean isPriceLower(BigDecimal newPrice, BigDecimal oldPrice) {

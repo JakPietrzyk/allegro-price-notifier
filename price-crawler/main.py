@@ -165,8 +165,8 @@ def make_error_response(error_enum: ScraperErrorCode, message: str, status_code:
 
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    # app.run(port=5000, debug=True)
 
 
-    # port = int(os.environ.get("PORT", 8080))
-    # app.run(host="0.0.0.0", port=port)
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host="0.0.0.0", port=port)
